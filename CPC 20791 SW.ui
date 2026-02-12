@@ -1,0 +1,2979 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1920</width>
+    <height>1080</height>
+   </rect>
+  </property>
+  <property name="sizePolicy">
+   <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+    <horstretch>0</horstretch>
+    <verstretch>0</verstretch>
+   </sizepolicy>
+  </property>
+  <property name="minimumSize">
+   <size>
+    <width>1920</width>
+    <height>1080</height>
+   </size>
+  </property>
+  <property name="maximumSize">
+   <size>
+    <width>1920</width>
+    <height>1080</height>
+   </size>
+  </property>
+  <property name="windowTitle">
+   <string>MainWindow</string>
+  </property>
+  <property name="styleSheet">
+   <string notr="true">/* ============================================
+   LIGHT &amp; AIRY THEME with Inter Font
+   Blue Accents
+   ============================================ */
+
+* {
+    font-family: 'Inter', 'Segoe UI', 'Roboto', 'Arial', sans-serif;
+    font-size: 12px;
+}
+
+/* ========== ГЛАВНОЕ ОКНО ========== */
+QMainWindow, QDialog, QWidget {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                               stop:0 #fafcff,  /* Чистый светлый */
+                               stop:1 #f0f4fa);  /* Нежный голубоватый */
+}
+
+QTabWidget::pane {
+    background: white;
+    border: 1px solid #e6ecf5;
+    border-radius: 0 16px 16px 16px;
+    padding: 24px;
+    margin: 0px;
+}
+
+QTabBar {
+    background: transparent;
+    qproperty-drawBase: 0;
+    qproperty-expanding: 0;  /* Запрещаем растягивание */
+}
+
+QTabBar::tab {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                               stop:0 #f5f9ff,
+                               stop:1 #e9f0f7);
+    color: #4a5b68;
+    font-size: 13px;
+    font-weight: 500;
+    
+    /* ВАЖНО: минимальная ширина и отступы */
+    min-width:100px;         /* Минимальная ширина */
+    max-width: 200px;        /* Максимальная ширина (можно увеличить) */
+    padding: 10px 20px;      /* Уменьшил горизонтальные отступы */
+    margin-right: 2px;
+    
+    border: none;
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+    
+    /* Чтобы текст не обрезался и переносился */
+    word-wrap: break-word;
+    white-space: nowrap;     /* Запрещаем перенос */
+}
+
+/* Для очень длинных текстов - разрешаем перенос */
+QTabBar::tab[longtext=&quot;true&quot;] {
+    white-space: normal;     /* Разрешаем перенос */
+    min-width: 60px;
+    max-width: 150px;
+    padding: 10px 12px;
+}
+
+QTabBar::tab:hover {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                               stop:0 #ffffff,
+                               stop:1 #f5f9ff);
+    color: #3498db;
+}
+
+QTabBar::tab:selected {
+    background: white;
+    color: #2980b9;
+    font-weight: 600;
+    border-bottom: 3px solid #3498db;
+    margin-bottom: -1px;
+}
+
+QTabBar::tab:first {
+    margin-left: 20px;
+}
+
+QTabBar::tab:last {
+    margin-right: 0;
+}
+/* ========== GROUP BOX = ИСПРАВЛЕННАЯ ВЕРСИЯ ========== */
+QGroupBox {
+    background: white;
+    border: 1px solid #e6ecf5;
+    border-radius: 16px;
+    margin-top: 16px;        /* Уменьшил, чтобы шапка не обрезалась */
+    padding-top: 24px;       /* Увеличил, чтобы дать место для заголовка */
+    padding-bottom: 16px;
+    padding-left: 16px;
+    padding-right: 16px;
+    color: #2c3e50;
+    font-weight: 500;
+}
+
+QGroupBox::title {
+    subcontrol-origin: padding;  /* МЕНЯЕМ с margin на padding */
+    subcontrol-position: top left;
+    left: 16px;
+    top: -12px;                 /* Отрицательный отступ поднимает заголовок */
+    padding: 4px 16px;
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                               stop:0 #3498db,
+                               stop:1 #2980b9);
+    border-radius: 20px;
+    border: none;
+    color: white;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+}
+
+/* Альтернативный вариант - заголовок СВЕРХУ (без наложения) */
+QGroupBox#top_title {
+    margin-top: 0px;
+    padding-top: 32px;
+}
+
+QGroupBox#top_title::title {
+    subcontrol-origin: padding;
+    subcontrol-position: top center;  /* По центру */
+    top: -16px;                      /* Чуть выше границы */
+    padding: 6px 24px;
+}
+
+/* Альтернативный вариант - заголовок ВНУТРИ (слева) */
+QGroupBox#inside_title {
+    margin-top: 0px;
+    padding-top: 16px;
+}
+
+QGroupBox#inside_title::title {
+    subcontrol-origin: padding;
+    subcontrol-position: top left;
+    left: 16px;
+    top: -8px;                     /* Меньше отступ */
+    padding: 3px 12px;
+    font-size: 10px;
+}
+
+/* ========== RADIO BUTTON ========== */
+QRadioButton {
+    color: #2c3e50;
+    font-size: 13px;
+    spacing: 12px;
+    padding: 6px 4px;
+    background: transparent;
+}
+
+QRadioButton::indicator {
+    width: 20px;
+    height: 20px;
+    border-radius: 10px;
+    border: 2px solid #d0d9e4;
+    background: white;
+}
+
+QRadioButton::indicator:hover {
+    border: 2px solid #74b9ff;  /* Светлый голубой */
+    background: #f8fcff;
+}
+
+QRadioButton::indicator:checked {
+    border: 2px solid #3498db;  /* Голубой */
+    background: qradialgradient(cx:0.5, cy:0.5, radius:0.6,
+                                fx:0.5, fy:0.5,
+                                stop:0 #74b9ff,
+                                stop:0.7 #3498db,
+                                stop:1 #2980b9);
+}
+
+QRadioButton:checked {
+    color: #1a2634;
+    font-weight: 600;
+}
+
+/* ========== PUSH BUTTON ========== */
+QPushButton {
+    background: white;
+    color: #2c3e50;
+    border: 1px solid #d8e1ec;
+    border-radius: 10px;
+    padding: 10px 24px;
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.2px;
+}
+
+QPushButton:hover {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                               stop:0 #f0f8ff,
+                               stop:1 #e5f0ff);
+    border: 1px solid #3498db;  /* Голубой */
+    color: #2980b9;
+}
+
+QPushButton:pressed {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                               stop:0 #e5f0ff,
+                               stop:1 #d8eaff);
+    padding-top: 11px;
+    padding-bottom: 9px;
+}
+
+QPushButton:disabled {
+    background: #f8fafc;
+    color: #a0b3c2;
+    border: 1px solid #e6ecf5;
+}
+
+QPushButton:default {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                               stop:0 #3498db,   /* Голубой */
+                               stop:1 #2980b9);  /* Тёмный голубой */
+    border: none;
+    color: white;
+    font-weight: 600;
+}
+
+QPushButton:default:hover {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                               stop:0 #5dade2,
+                               stop:1 #3498db);
+}
+
+/* ========== LABEL ========== */
+QLabel {
+    color: #2c3e50;
+    background: transparent;
+    padding: 2px;
+    font-size: 13px;
+}
+
+QLabel#title {
+    color: #1a2634;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+    padding-bottom: 12px;
+}
+
+QLabel#header {
+    color: #3498db;  /* Голубой */
+    font-size: 15px;
+    font-weight: 600;
+    padding: 8px 0;
+}
+
+QLabel#value {
+    color: #2980b9;  /* Тёмный голубой */
+    font-weight: 700;
+    font-size: 17px;
+    background: #f0f8ff;
+    padding: 6px 16px;
+    border-radius: 24px;
+    border: 1px solid #d4e6f1;
+}
+
+QLabel#accent {
+    color: #3498db;  /* Голубой */
+    font-weight: 600;
+}
+
+QLabel#info {
+    color: #7f8c8d;
+    font-size: 12px;
+}
+
+/* ========== LCD NUMBER ========== */
+QLCDNumber {
+    background: white;
+    color: #1a2634;
+    border: 1px solid #e6ecf5;
+    border-radius: 12px;
+    padding: 8px;
+}
+
+QLCDNumber#big {
+    font-size: 28px;
+    min-height: 60px;
+    max-height: 80px;
+    color: #2980b9;  /* Голубой */
+    border: 2px solid #3498db;
+}
+
+/* ========== TOOLTIPS ========== */
+QToolTip {
+    background: #2c3e50;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 12px;
+    font-family: 'Inter', 'Segoe UI', sans-serif;
+}
+
+/* ========== SCROLL BARS ========== */
+QScrollBar:vertical {
+    background: #f5f9ff;
+    width: 14px;
+    border-radius: 7px;
+    margin: 0px;
+}
+
+QScrollBar::handle:vertical {
+    background: #cbd5e0;
+    min-height: 30px;
+    border-radius: 7px;
+    margin: 2px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background: #3498db;  /* Голубой */
+}
+
+QScrollBar:horizontal {
+    background: #f5f9ff;
+    height: 14px;
+    border-radius: 7px;
+}
+
+QScrollBar::handle:horizontal {
+    background: #cbd5e0;
+    min-width: 30px;
+    border-radius: 7px;
+    margin: 2px;
+}
+
+QScrollBar::handle:horizontal:hover {
+    background: #3498db;  /* Голубой */
+}
+
+/* ========== COMBOBOX ========== */
+QComboBox {
+    background: white;
+    color: #2c3e50;
+    border: 1px solid #d8e1ec;
+    border-radius: 10px;
+    padding: 10px 16px;
+    font-size: 13px;
+}
+
+QComboBox:hover {
+    border: 1px solid #3498db;  /* Голубой */
+    background: #f0f8ff;
+}
+
+QComboBox:focus {
+    border: 1px solid #2980b9;
+    background: white;
+}
+
+QComboBox::drop-down {
+    subcontrol-origin: padding;
+    subcontrol-position: top right;
+    width: 30px;
+    border-left: 1px solid #d8e1ec;
+    border-top-right-radius: 10px;
+    border-bottom-right-radius: 10px;
+}
+
+QComboBox::down-arrow {
+    image: none;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 5px solid #3498db;  /* Голубой */
+    width: 0;
+    height: 0;
+    margin-right: 8px;
+}
+
+QComboBox QAbstractItemView {
+    background: white;
+    color: #2c3e50;
+    border: 1px solid #d8e1ec;
+    border-radius: 8px;
+    selection-background-color: #e1f0fa;
+    selection-color: #2980b9;
+    outline: 0;
+    padding: 4px;
+}
+
+/* ========== LINE EDIT ========== */
+QLineEdit, QTextEdit, QPlainTextEdit {
+    background: white;
+    color: #2c3e50;
+    border: 1px solid #d8e1ec;
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 13px;
+    selection-background-color: #d4e6f1;
+    selection-color: #1a2634;
+}
+
+QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus {
+    border: 1px solid #3498db;  /* Голубой */
+    background: #fafcff;
+}
+
+QLineEdit:hover, QTextEdit:hover, QPlainTextEdit:hover {
+    border: 1px solid #74b9ff;  /* Светлый голубой */
+}
+
+/* ========== CHECKBOX ========== */
+QCheckBox {
+    color: #2c3e50;
+    font-size: 13px;
+    spacing: 10px;
+}
+
+QCheckBox::indicator {
+    width: 20px;
+    height: 20px;
+    border-radius: 6px;
+    border: 2px solid #d0d9e4;
+    background: white;
+}
+
+QCheckBox::indicator:hover {
+    border: 2px solid #74b9ff;  /* Светлый голубой */
+    background: #f0f8ff;
+}
+
+QCheckBox::indicator:checked {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                               stop:0 #3498db,  /* Голубой */
+                               stop:1 #2980b9);
+    border: 2px solid #3498db;
+}
+
+QCheckBox:checked {
+    color: #1a2634;
+    font-weight: 600;
+}
+
+/* ========== SPINBOX ========== */
+QSpinBox, QDoubleSpinBox {
+    background: white;
+    color: #2c3e50;
+    border: 1px solid #d8e1ec;
+    border-radius: 10px;
+    padding: 8px 12px;
+    font-size: 13px;
+}
+
+QSpinBox:hover, QDoubleSpinBox:hover {
+    border: 1px solid #3498db;  /* Голубой */
+}
+
+QSpinBox:focus, QDoubleSpinBox:focus {
+    border: 1px solid #2980b9;
+}
+
+/* ========== PROGRESS BAR ========== */
+QProgressBar {
+    background: #edf2f7;
+    border: 1px solid #d8e1ec;
+    border-radius: 10px;
+    height: 24px;
+    text-align: center;
+    color: #2c3e50;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+QProgressBar::chunk {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                               stop:0 #74b9ff,  /* Светлый голубой */
+                               stop:1 #3498db);  /* Голубой */
+    border-radius: 8px;
+}
+
+/* ========== SLIDER ========== */
+QSlider::groove:horizontal {
+    background: #edf2f7;
+    border: 1px solid #d8e1ec;
+    height: 8px;
+    border-radius: 4px;
+}
+
+QSlider::handle:horizontal {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                               stop:0 #ffffff,
+                               stop:1 #f5f9ff);
+    border: 2px solid #3498db;  /* Голубой */
+    width: 22px;
+    height: 22px;
+    margin: -7px 0;
+    border-radius: 11px;
+}
+
+QSlider::handle:horizontal:hover {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                               stop:0 #74b9ff,
+                               stop:1 #3498db);
+    border: 2px solid #2980b9;
+}
+
+QSlider::sub-page:horizontal {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                               stop:0 #74b9ff,  /* Светлый голубой */
+                               stop:1 #3498db);  /* Голубой */
+    border-radius: 4px;
+}
+
+/* ========== TABLE VIEW ========== */
+QTableView {
+    background: white;
+    border: 1px solid #e6ecf5;
+    border-radius: 12px;
+    padding: 4px;
+    gridline-color: #edf2f7;
+    color: #2c3e50;
+}
+
+QTableView::item {
+    padding: 10px;
+    border-bottom: 1px solid #f0f4fa;
+}
+
+QTableView::item:selected {
+    background: #e1f0fa;
+    color: #2980b9;
+}
+
+QHeaderView::section {
+    background: #f5f9ff;
+    color: #2c3e50;
+    border: none;
+    border-bottom: 2px solid #3498db;  /* Голубой */
+    padding: 12px;
+    font-weight: 600;
+    font-size: 12px;
+}
+
+/* ========== LIST VIEW ========== */
+QListView {
+    background: white;
+    border: 1px solid #e6ecf5;
+    border-radius: 12px;
+    padding: 8px;
+    color: #2c3e50;
+}
+
+QListView::item {
+    padding: 10px 14px;
+    border-radius: 8px;
+}
+
+QListView::item:hover {
+    background: #f0f8ff;
+    color: #2980b9;
+}
+
+QListView::item:selected {
+    background: #3498db;  /* Голубой */
+    color: white;
+}
+
+/* ========== MENU BAR ========== */
+QMenuBar {
+    background: white;
+    border-bottom: 1px solid #e6ecf5;
+    padding: 4px;
+}
+
+QMenuBar::item {
+    background: transparent;
+    color: #2c3e50;
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+}
+
+QMenuBar::item:selected {
+    background: #f0f8ff;
+    color: #3498db;
+}
+
+QMenu {
+    background: white;
+    border: 1px solid #e6ecf5;
+    border-radius: 12px;
+    padding: 8px;
+}
+
+QMenu::item {
+    padding: 10px 28px;
+    border-radius: 8px;
+    color: #2c3e50;
+    font-size: 13px;
+}
+
+QMenu::item:selected {
+    background: #f0f8ff;
+    color: #3498db;
+}
+
+QMenu::separator {
+    height: 1px;
+    background: #e6ecf5;
+    margin: 8px 16px;
+}
+
+/* ========== STATUS BAR ========== */
+QStatusBar {
+    background: white;
+    border-top: 1px solid #e6ecf5;
+    color: #7f8c8d;
+    padding: 8px;
+    font-size: 12px;
+}
+
+/* ========== SPLITTER ========== */
+QSplitter::handle {
+    background: #e6ecf5;
+    border-radius: 2px;
+}
+
+QSplitter::handle:hover {
+    background: #3498db;  /* Голубой */
+}
+
+/* ========== LIST WIDGET ========== */
+QListWidget {
+    background: white;
+    border: 1px solid #e6ecf5;
+    border-radius: 12px;
+    padding: 8px;
+    color: #2c3e50;
+}
+
+QListWidget::item {
+    padding: 10px 14px;
+    border-radius: 8px;
+}
+
+QListWidget::item:hover {
+    background: #f0f8ff;
+    color: #2980b9;
+}
+
+QListWidget::item:selected {
+    background: #3498db;
+    color: white;
+}
+
+/* ========== TREE VIEW ========== */
+QTreeView {
+    background: white;
+    border: 1px solid #e6ecf5;
+    border-radius: 12px;
+    padding: 4px;
+    color: #2c3e50;
+}
+
+QTreeView::item {
+    padding: 8px;
+    border-radius: 6px;
+}
+
+QTreeView::item:hover {
+    background: #f0f8ff;
+}
+
+QTreeView::item:selected {
+    background: #e1f0fa;
+    color: #2980b9;
+}
+
+/* ========== TAB BAR (дополнительно) ========== */
+QTabBar::close-button {
+    image: none;
+    background: #e6ecf5;
+    border-radius: 8px;
+    padding: 2px;
+}
+
+QTabBar::close-button:hover {
+    background: #ff6b6b;
+    color: white;
+}
+
+/* ========== SCROLL AREA ========== */
+QScrollArea {
+    border: 1px solid #e6ecf5;
+    border-radius: 12px;
+    background: white;
+}
+
+/* ========== DATE EDIT ========== */
+QDateEdit {
+    background: white;
+    color: #2c3e50;
+    border: 1px solid #d8e1ec;
+    border-radius: 10px;
+    padding: 8px 12px;
+    font-size: 13px;
+}
+
+QDateEdit:hover {
+    border: 1px solid #3498db;
+}
+
+QDateEdit:focus {
+    border: 1px solid #2980b9;
+}
+
+/* ========== DIAL ========== */
+QDial {
+    background: transparent;
+    color: #3498db;
+}
+
+QDial::handle {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                               stop:0 #ffffff,
+                               stop:1 #f0f8ff);
+    border: 2px solid #3498db;
+    border-radius: 12px;
+}
+
+QDial::handle:hover {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                               stop:0 #74b9ff,
+                               stop:1 #3498db);
+}</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <property name="minimumSize">
+    <size>
+     <width>1920</width>
+     <height>1080</height>
+    </size>
+   </property>
+   <widget class="QTabWidget" name="tabWidget">
+    <property name="geometry">
+     <rect>
+      <x>0</x>
+      <y>10</y>
+      <width>1901</width>
+      <height>991</height>
+     </rect>
+    </property>
+    <property name="currentIndex">
+     <number>0</number>
+    </property>
+    <widget class="QWidget" name="tabWidgetPage1">
+     <attribute name="title">
+      <string notr="true">CPC 20791 Out</string>
+     </attribute>
+     <layout class="QGridLayout" name="gridLayout_5">
+      <item row="0" column="0" colspan="5">
+       <widget class="QGroupBox" name="groupBox_3">
+        <property name="font">
+         <font>
+          <family>Inter</family>
+          <pointsize>-1</pointsize>
+          <weight>62</weight>
+          <bold>true</bold>
+         </font>
+        </property>
+        <property name="title">
+         <string>ARINC Label 352 / 353</string>
+        </property>
+        <widget class="QWidget" name="">
+         <property name="geometry">
+          <rect>
+           <x>22</x>
+           <y>40</y>
+           <width>1781</width>
+           <height>251</height>
+          </rect>
+         </property>
+         <layout class="QGridLayout" name="gridLayout">
+          <item row="0" column="0">
+           <layout class="QVBoxLayout" name="verticalLayout">
+            <item>
+             <widget class="QLabel" name="label_16">
+              <property name="text">
+               <string>SA3</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QRadioButton" name="LDG_GEAR_NORM_0">
+              <property name="enabled">
+               <bool>true</bool>
+              </property>
+              <property name="font">
+               <font>
+                <family>Inter</family>
+                <pointsize>-1</pointsize>
+                <weight>75</weight>
+                <bold>true</bold>
+               </font>
+              </property>
+              <property name="text">
+               <string>Compressed</string>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+              <property name="checked">
+               <bool>false</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QRadioButton" name="LDG_GEAR_NORM_1">
+              <property name="text">
+               <string>Not compressed</string>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="label">
+              <property name="font">
+               <font>
+                <family>Inter</family>
+                <pointsize>-1</pointsize>
+                <weight>75</weight>
+                <bold>true</bold>
+               </font>
+              </property>
+              <property name="text">
+               <string>LDG_GEAR_NORM</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item row="0" column="1">
+           <layout class="QVBoxLayout" name="verticalLayout_2">
+            <item>
+             <widget class="QLabel" name="label_17">
+              <property name="text">
+               <string>SA4</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QRadioButton" name="LDG_GEAR_ESS_0">
+              <property name="text">
+               <string>Compressed</string>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QRadioButton" name="LDG_GEAR_ESS_1">
+              <property name="text">
+               <string>Not compressed</string>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="label_2">
+              <property name="font">
+               <font>
+                <family>Inter</family>
+                <pointsize>-1</pointsize>
+                <weight>75</weight>
+                <bold>true</bold>
+               </font>
+              </property>
+              <property name="text">
+               <string>LDG_GEAR_ESS</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item row="0" column="2">
+           <layout class="QVBoxLayout" name="verticalLayout_3">
+            <item>
+             <widget class="QLabel" name="label_18">
+              <property name="text">
+               <string>SA5</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QRadioButton" name="MANUAL_MODE_0">
+              <property name="text">
+               <string>AUTO</string>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QRadioButton" name="MANUAL_MODE_1">
+              <property name="text">
+               <string>MANUAL</string>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="label_3">
+              <property name="font">
+               <font>
+                <family>Inter</family>
+                <pointsize>-1</pointsize>
+                <weight>75</weight>
+                <bold>true</bold>
+               </font>
+              </property>
+              <property name="text">
+               <string>MANUAL_MODE</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item row="0" column="3">
+           <layout class="QVBoxLayout" name="verticalLayout_4">
+            <item>
+             <widget class="QLabel" name="label_19">
+              <property name="text">
+               <string>SA6</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QRadioButton" name="DITCH_SWITCH_0">
+              <property name="text">
+               <string>DITCH</string>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QRadioButton" name="DITCH_SWITCH_1">
+              <property name="text">
+               <string>NO DITCH</string>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="label_4">
+              <property name="font">
+               <font>
+                <family>Inter</family>
+                <pointsize>-1</pointsize>
+                <weight>75</weight>
+                <bold>true</bold>
+               </font>
+              </property>
+              <property name="text">
+               <string>DITCH_SWITCH</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item row="0" column="4">
+           <layout class="QVBoxLayout" name="verticalLayout_5">
+            <item>
+             <widget class="QLabel" name="label_20">
+              <property name="text">
+               <string>SA7</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QRadioButton" name="EMER_RAM_AIR_0">
+              <property name="text">
+               <string>RAM AIR OFF</string>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QRadioButton" name="EMER_RAM_AIR_1">
+              <property name="text">
+               <string>RAM AIR ON</string>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="label_5">
+              <property name="font">
+               <font>
+                <family>Inter</family>
+                <pointsize>-1</pointsize>
+                <weight>75</weight>
+                <bold>true</bold>
+               </font>
+              </property>
+              <property name="text">
+               <string>EMER_RAM_AIR</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item row="0" column="5">
+           <layout class="QVBoxLayout" name="verticalLayout_6">
+            <item>
+             <widget class="QLabel" name="label_21">
+              <property name="text">
+               <string>SA8</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QRadioButton" name="RS_SELECT_0">
+              <property name="text">
+               <string>RS232 SELECTED</string>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QRadioButton" name="RS_SELECT_1">
+              <property name="text">
+               <string>RS422 SELECTED</string>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="label_6">
+              <property name="font">
+               <font>
+                <family>Inter</family>
+                <pointsize>-1</pointsize>
+                <weight>75</weight>
+                <bold>true</bold>
+               </font>
+              </property>
+              <property name="text">
+               <string>RS_SELECT</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item row="0" column="6">
+           <layout class="QVBoxLayout" name="verticalLayout_7">
+            <item>
+             <widget class="QLabel" name="label_22">
+              <property name="text">
+               <string>SA9</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QRadioButton" name="FMS_ENABLE_0">
+              <property name="text">
+               <string>FMS DISABLED</string>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QRadioButton" name="FMS_ENABLE_1">
+              <property name="text">
+               <string>FMS ENABLED</string>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="label_7">
+              <property name="font">
+               <font>
+                <family>Inter</family>
+                <pointsize>-1</pointsize>
+                <weight>75</weight>
+                <bold>true</bold>
+               </font>
+              </property>
+              <property name="text">
+               <string>FMS_ENABLE</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item row="1" column="5">
+           <layout class="QVBoxLayout" name="verticalLayout_13">
+            <item>
+             <widget class="QLabel" name="label_28">
+              <property name="text">
+               <string>SA19</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QRadioButton" name="FAULT_WARN_WR_0">
+              <property name="text">
+               <string>SYSTEM FAULT</string>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QRadioButton" name="FAULT_WARN_WR_1">
+              <property name="text">
+               <string>SYSTEM OK</string>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="label_15">
+              <property name="font">
+               <font>
+                <family>Inter</family>
+                <pointsize>-1</pointsize>
+                <weight>75</weight>
+                <bold>true</bold>
+               </font>
+              </property>
+              <property name="text">
+               <string>FAULT_WARN_WR</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item row="1" column="4">
+           <layout class="QVBoxLayout" name="verticalLayout_12">
+            <item>
+             <widget class="QLabel" name="label_27">
+              <property name="text">
+               <string>SA18</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QRadioButton" name="SYS_IN_CNTL_IN_0">
+              <property name="text">
+               <string>SYS NOT IN CONTROL</string>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QRadioButton" name="SYS_IN_CNTL_IN_1">
+              <property name="text">
+               <string>SYS IN CONTROL</string>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="label_14">
+              <property name="font">
+               <font>
+                <family>Inter</family>
+                <pointsize>-1</pointsize>
+                <weight>75</weight>
+                <bold>true</bold>
+               </font>
+              </property>
+              <property name="text">
+               <string>SYS_IN_CNTL_IN</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item row="1" column="3">
+           <layout class="QVBoxLayout" name="verticalLayout_11">
+            <item>
+             <widget class="QLabel" name="label_26">
+              <property name="text">
+               <string>SA13</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QRadioButton" name="HI_CRFL_0">
+              <property name="text">
+               <string>SELECTED</string>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QRadioButton" name="HI_CRFL_1">
+              <property name="text">
+               <string>NOT SELECTED</string>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="label_11">
+              <property name="font">
+               <font>
+                <family>Inter</family>
+                <pointsize>-1</pointsize>
+                <weight>75</weight>
+                <bold>true</bold>
+               </font>
+              </property>
+              <property name="text">
+               <string>HI_CRFL</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item row="1" column="2">
+           <layout class="QVBoxLayout" name="verticalLayout_10">
+            <item>
+             <widget class="QLabel" name="label_25">
+              <property name="text">
+               <string>SA12</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QRadioButton" name="ENG2_N2_1">
+              <property name="text">
+               <string>TO POWER</string>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QRadioButton" name="ENG2_N2_2">
+              <property name="text">
+               <string>NO TO POWER</string>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="label_10">
+              <property name="font">
+               <font>
+                <family>Inter</family>
+                <pointsize>-1</pointsize>
+                <weight>75</weight>
+                <bold>true</bold>
+               </font>
+              </property>
+              <property name="text">
+               <string>ENG2_N2</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item row="1" column="1">
+           <layout class="QVBoxLayout" name="verticalLayout_9">
+            <item>
+             <widget class="QLabel" name="label_24">
+              <property name="text">
+               <string>SA11</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QRadioButton" name="ENG1_N2_0">
+              <property name="text">
+               <string>TO POWER</string>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QRadioButton" name="ENG1_N2_1">
+              <property name="text">
+               <string>NO TO POWER</string>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="label_9">
+              <property name="font">
+               <font>
+                <family>Inter</family>
+                <pointsize>-1</pointsize>
+                <weight>75</weight>
+                <bold>true</bold>
+               </font>
+              </property>
+              <property name="text">
+               <string>ENG1_N2</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item row="1" column="0">
+           <layout class="QVBoxLayout" name="verticalLayout_8">
+            <item>
+             <widget class="QLabel" name="label_23">
+              <property name="text">
+               <string>SA10</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QRadioButton" name="SYS_ID_0">
+              <property name="text">
+               <string>MASTER</string>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QRadioButton" name="SYS_ID_1">
+              <property name="text">
+               <string>SLAVE</string>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="label_8">
+              <property name="font">
+               <font>
+                <family>Inter</family>
+                <pointsize>-1</pointsize>
+                <weight>75</weight>
+                <bold>true</bold>
+               </font>
+              </property>
+              <property name="text">
+               <string>SYS_ID</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </widget>
+       </widget>
+      </item>
+      <item row="1" column="0" colspan="5">
+       <widget class="QGroupBox" name="groupBox_2">
+        <property name="font">
+         <font>
+          <family>Inter</family>
+          <pointsize>-1</pointsize>
+          <weight>62</weight>
+          <bold>true</bold>
+         </font>
+        </property>
+        <property name="title">
+         <string>ARINC Label 057</string>
+        </property>
+        <layout class="QVBoxLayout" name="verticalLayout_30">
+         <item>
+          <layout class="QHBoxLayout" name="horizontalLayout_2">
+           <item>
+            <layout class="QVBoxLayout" name="verticalLayout_16">
+             <item>
+              <widget class="QRadioButton" name="sys_in_ctrl_no">
+               <property name="font">
+                <font>
+                 <family>Inter</family>
+                 <pointsize>-1</pointsize>
+                 <weight>75</weight>
+                 <bold>true</bold>
+                </font>
+               </property>
+               <property name="text">
+                <string>NO</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+               <property name="checked">
+                <bool>false</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QRadioButton" name="sys_in_ctrl_yes">
+               <property name="text">
+                <string>YES</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="label_31">
+               <property name="font">
+                <font>
+                 <family>Inter</family>
+                 <pointsize>-1</pointsize>
+                 <weight>75</weight>
+                 <bold>true</bold>
+                </font>
+               </property>
+               <property name="text">
+                <string>SYSTEM IN CONTROL</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <layout class="QVBoxLayout" name="verticalLayout_26">
+             <item>
+              <widget class="QRadioButton" name="sys_status_good">
+               <property name="font">
+                <font>
+                 <family>Inter</family>
+                 <pointsize>-1</pointsize>
+                 <weight>75</weight>
+                 <bold>true</bold>
+                </font>
+               </property>
+               <property name="text">
+                <string>GOOD</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+               <property name="checked">
+                <bool>false</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QRadioButton" name="sys_status_fail">
+               <property name="text">
+                <string>FAIL</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="label_32">
+               <property name="font">
+                <font>
+                 <family>Inter</family>
+                 <pointsize>-1</pointsize>
+                 <weight>75</weight>
+                 <bold>true</bold>
+                </font>
+               </property>
+               <property name="text">
+                <string>SYSTEM STATUS</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <layout class="QVBoxLayout" name="verticalLayout_25">
+             <item>
+              <widget class="QRadioButton" name="lfe_from_fms_used">
+               <property name="font">
+                <font>
+                 <family>Inter</family>
+                 <pointsize>-1</pointsize>
+                 <weight>75</weight>
+                 <bold>true</bold>
+                </font>
+               </property>
+               <property name="text">
+                <string>USED</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+               <property name="checked">
+                <bool>false</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QRadioButton" name="lfe_from_fms_nused">
+               <property name="text">
+                <string>NOT USED</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="label_33">
+               <property name="font">
+                <font>
+                 <family>Inter</family>
+                 <pointsize>-1</pointsize>
+                 <weight>75</weight>
+                 <bold>true</bold>
+                </font>
+               </property>
+               <property name="text">
+                <string>LFE FROM FMS</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <layout class="QVBoxLayout" name="verticalLayout_24">
+             <item>
+              <widget class="QRadioButton" name="cabine_altitude_nwarn">
+               <property name="font">
+                <font>
+                 <family>Inter</family>
+                 <pointsize>-1</pointsize>
+                 <weight>75</weight>
+                 <bold>true</bold>
+                </font>
+               </property>
+               <property name="text">
+                <string>NO WARN</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+               <property name="checked">
+                <bool>false</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QRadioButton" name="cabine_altitude_warn">
+               <property name="text">
+                <string>WARNING</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="label_34">
+               <property name="font">
+                <font>
+                 <family>Inter</family>
+                 <pointsize>-1</pointsize>
+                 <weight>75</weight>
+                 <bold>true</bold>
+                </font>
+               </property>
+               <property name="text">
+                <string>EXCESSIVE CABINE ALTITUDE</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <layout class="QVBoxLayout" name="verticalLayout_23">
+             <item>
+              <widget class="QRadioButton" name="diff_pressure_nwarn">
+               <property name="font">
+                <font>
+                 <family>Inter</family>
+                 <pointsize>-1</pointsize>
+                 <weight>75</weight>
+                 <bold>true</bold>
+                </font>
+               </property>
+               <property name="text">
+                <string>NO WARN</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+               <property name="checked">
+                <bool>false</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QRadioButton" name="diff_pressure_warn">
+               <property name="text">
+                <string>WARNING</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="label_39">
+               <property name="font">
+                <font>
+                 <family>Inter</family>
+                 <pointsize>-1</pointsize>
+                 <weight>75</weight>
+                 <bold>true</bold>
+                </font>
+               </property>
+               <property name="text">
+                <string>LOW DIFFERENTIAL PRESSURE</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <layout class="QVBoxLayout" name="verticalLayout_18">
+             <item>
+              <widget class="QCheckBox" name="preplanned_good">
+               <property name="enabled">
+                <bool>true</bool>
+               </property>
+               <property name="font">
+                <font>
+                 <family>Inter</family>
+                 <pointsize>-1</pointsize>
+                 <weight>75</weight>
+                 <bold>true</bold>
+                </font>
+               </property>
+               <property name="mouseTracking">
+                <bool>true</bool>
+               </property>
+               <property name="text">
+                <string>GOOD</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+               <property name="checked">
+                <bool>false</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QCheckBox" name="preplanned_toofast">
+               <property name="text">
+                <string>TOO FAST</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="label_40">
+               <property name="font">
+                <font>
+                 <family>Inter</family>
+                 <pointsize>-1</pointsize>
+                 <weight>75</weight>
+                 <bold>true</bold>
+                </font>
+               </property>
+               <property name="text">
+                <string>PREPLANNED DESCENT INFO</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="horizontalLayout_3">
+           <item>
+            <layout class="QVBoxLayout" name="verticalLayout_28">
+             <item>
+              <widget class="QRadioButton" name="lfes_stat_auto">
+               <property name="font">
+                <font>
+                 <family>Inter</family>
+                 <pointsize>-1</pointsize>
+                 <weight>75</weight>
+                 <bold>true</bold>
+                </font>
+               </property>
+               <property name="text">
+                <string>AUTO</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+               <property name="checked">
+                <bool>false</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QRadioButton" name="lfes_stat_manual">
+               <property name="text">
+                <string>MANUAL</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="label_41">
+               <property name="font">
+                <font>
+                 <family>Inter</family>
+                 <pointsize>-1</pointsize>
+                 <weight>75</weight>
+                 <bold>true</bold>
+                </font>
+               </property>
+               <property name="text">
+                <string>LFES STATUS</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <layout class="QVBoxLayout" name="verticalLayout_27">
+             <item>
+              <widget class="QRadioButton" name="adirs_ch_no">
+               <property name="font">
+                <font>
+                 <family>Inter</family>
+                 <pointsize>-1</pointsize>
+                 <weight>75</weight>
+                 <bold>true</bold>
+                </font>
+               </property>
+               <property name="text">
+                <string>NO ADIRS</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+               <property name="checked">
+                <bool>false</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QRadioButton" name="adirs_ch_1">
+               <property name="text">
+                <string>ADIRS 1</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QRadioButton" name="adirs_ch_2">
+               <property name="text">
+                <string>ADIRS 2</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QRadioButton" name="adirs_ch_3">
+               <property name="text">
+                <string>ADIRS 3</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="label_42">
+               <property name="font">
+                <font>
+                 <family>Inter</family>
+                 <pointsize>-1</pointsize>
+                 <weight>75</weight>
+                 <bold>true</bold>
+                </font>
+               </property>
+               <property name="text">
+                <string>ADIRS CHANNEL</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <layout class="QVBoxLayout" name="verticalLayout_22">
+             <item>
+              <widget class="QCheckBox" name="fms_disable">
+               <property name="text">
+                <string>FMS DISABLED</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QCheckBox" name="fms_enable">
+               <property name="text">
+                <string>FMS ENABLED</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="label_43">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="maximumSize">
+                <size>
+                 <width>16777215</width>
+                 <height>20</height>
+                </size>
+               </property>
+               <property name="font">
+                <font>
+                 <family>Inter</family>
+                 <pointsize>-1</pointsize>
+                 <weight>75</weight>
+                 <bold>true</bold>
+                </font>
+               </property>
+               <property name="text">
+                <string>FMS_ENABLE</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <layout class="QVBoxLayout" name="verticalLayout_21">
+             <item>
+              <layout class="QHBoxLayout" name="horizontalLayout">
+               <item>
+                <layout class="QVBoxLayout" name="verticalLayout_20">
+                 <item>
+                  <widget class="QCheckBox" name="flight_modes_gr">
+                   <property name="font">
+                    <font>
+                     <family>Inter</family>
+                     <pointsize>-1</pointsize>
+                     <weight>75</weight>
+                     <bold>true</bold>
+                    </font>
+                   </property>
+                   <property name="text">
+                    <string>GR (GROUND)</string>
+                   </property>
+                   <property name="checkable">
+                    <bool>true</bool>
+                   </property>
+                   <property name="checked">
+                    <bool>false</bool>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QCheckBox" name="flight_modes_to">
+                   <property name="text">
+                    <string>TO (TAKE OFF)</string>
+                   </property>
+                   <property name="checkable">
+                    <bool>true</bool>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QCheckBox" name="flight_modes_ci">
+                   <property name="text">
+                    <string>CI (CLIMB INTERNAL)</string>
+                   </property>
+                   <property name="checkable">
+                    <bool>true</bool>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QCheckBox" name="flight_modes_ce">
+                   <property name="text">
+                    <string>CE (CLIMB EXTERNAL)</string>
+                   </property>
+                   <property name="checkable">
+                    <bool>true</bool>
+                   </property>
+                  </widget>
+                 </item>
+                </layout>
+               </item>
+               <item>
+                <layout class="QVBoxLayout" name="verticalLayout_19">
+                 <item>
+                  <widget class="QCheckBox" name="flight_modes_cr">
+                   <property name="text">
+                    <string>CR (CRUISE)</string>
+                   </property>
+                   <property name="checkable">
+                    <bool>true</bool>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QCheckBox" name="flight_modes_di">
+                   <property name="text">
+                    <string>DI (DECENT INTERNAL)</string>
+                   </property>
+                   <property name="checkable">
+                    <bool>true</bool>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QCheckBox" name="flight_modes_de">
+                   <property name="text">
+                    <string>DE (DECENT EXTERNAL)</string>
+                   </property>
+                   <property name="checkable">
+                    <bool>true</bool>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QCheckBox" name="flight_modes_ab">
+                   <property name="text">
+                    <string>AB (ABORT)</string>
+                   </property>
+                   <property name="checkable">
+                    <bool>true</bool>
+                   </property>
+                  </widget>
+                 </item>
+                </layout>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <widget class="QLabel" name="label_44">
+               <property name="font">
+                <font>
+                 <family>Inter</family>
+                 <pointsize>-1</pointsize>
+                 <weight>75</weight>
+                 <bold>true</bold>
+                </font>
+               </property>
+               <property name="text">
+                <string>FLIGHT MODES</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <layout class="QVBoxLayout" name="verticalLayout_14">
+             <item>
+              <widget class="QCheckBox" name="fms_sel_1eng">
+               <property name="font">
+                <font>
+                 <family>Inter</family>
+                 <pointsize>-1</pointsize>
+                 <weight>75</weight>
+                 <bold>true</bold>
+                </font>
+               </property>
+               <property name="text">
+                <string>FMS 1  MASTER, AP ENGAGED</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+               <property name="checked">
+                <bool>false</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QCheckBox" name="fms_sel_1neng">
+               <property name="text">
+                <string>FMS 1  MASTER, AP NOT ENGAGED</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QCheckBox" name="fms_sel_2eng">
+               <property name="text">
+                <string>FMS 2  MASTER, AP ENGAGED</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QCheckBox" name="fms_sel_2neng">
+               <property name="text">
+                <string>FMS 2  MASTER, AP NOT  ENGAGED</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="label_45">
+               <property name="font">
+                <font>
+                 <family>Inter</family>
+                 <pointsize>-1</pointsize>
+                 <weight>75</weight>
+                 <bold>true</bold>
+                </font>
+               </property>
+               <property name="text">
+                <string>FMS SELECTION</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="horizontalLayout_4">
+           <item>
+            <layout class="QVBoxLayout" name="verticalLayout_29">
+             <item>
+              <widget class="QCheckBox" name="fms_use_use">
+               <property name="font">
+                <font>
+                 <family>Inter</family>
+                 <pointsize>-1</pointsize>
+                 <weight>75</weight>
+                 <bold>true</bold>
+                </font>
+               </property>
+               <property name="text">
+                <string>FMS 1 OR FMS 2 USED AND LABEL 351 VALID</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+               <property name="checked">
+                <bool>false</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QCheckBox" name="fms_use_nuse">
+               <property name="text">
+                <string>NO FMS USED</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="label_46">
+               <property name="font">
+                <font>
+                 <family>Inter</family>
+                 <pointsize>-1</pointsize>
+                 <weight>75</weight>
+                 <bold>true</bold>
+                </font>
+               </property>
+               <property name="text">
+                <string>FMS USE</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <layout class="QVBoxLayout" name="verticalLayout_15">
+             <item>
+              <widget class="QCheckBox" name="class2fault_pres">
+               <property name="text">
+                <string>PRESENT</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QCheckBox" name="class2fault_npres">
+               <property name="text">
+                <string>NOT PRESENT</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="label_48">
+               <property name="font">
+                <font>
+                 <family>Inter</family>
+                 <pointsize>-1</pointsize>
+                 <weight>75</weight>
+                 <bold>true</bold>
+                </font>
+               </property>
+               <property name="text">
+                <string>CLASS 2 FAULT</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <layout class="QVBoxLayout" name="verticalLayout_17">
+             <item>
+              <widget class="QCheckBox" name="qnh_use">
+               <property name="text">
+                <string>USED</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QCheckBox" name="qnh_nuse">
+               <property name="text">
+                <string>NOT USED</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="label_47">
+               <property name="font">
+                <font>
+                 <family>Inter</family>
+                 <pointsize>-1</pointsize>
+                 <weight>75</weight>
+                 <bold>true</bold>
+                </font>
+               </property>
+               <property name="text">
+                <string>QNH FROM FMS</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+          </layout>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QGroupBox" name="groupBox_10">
+        <property name="font">
+         <font>
+          <family>Inter</family>
+          <pointsize>-1</pointsize>
+          <weight>62</weight>
+          <bold>true</bold>
+         </font>
+        </property>
+        <property name="title">
+         <string>UUT to operator (RS422)</string>
+        </property>
+        <layout class="QVBoxLayout" name="verticalLayout_31">
+         <item>
+          <layout class="QHBoxLayout" name="horizontalLayout_5">
+           <item>
+            <widget class="QLabel" name="label_88">
+             <property name="font">
+              <font>
+               <family>Inter</family>
+               <pointsize>-1</pointsize>
+               <weight>75</weight>
+               <bold>true</bold>
+              </font>
+             </property>
+             <property name="text">
+              <string>PRESSURE</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QLCDNumber" name="lcdNumber_7"/>
+           </item>
+           <item>
+            <widget class="QLabel" name="label_89">
+             <property name="text">
+              <string>hPa</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="horizontalLayout_6">
+           <item>
+            <widget class="QLabel" name="label_90">
+             <property name="font">
+              <font>
+               <family>Inter</family>
+               <pointsize>-1</pointsize>
+               <weight>75</weight>
+               <bold>true</bold>
+              </font>
+             </property>
+             <property name="text">
+              <string>ALT CAB RATO</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QLCDNumber" name="lcdNumber_8"/>
+           </item>
+           <item>
+            <widget class="QLabel" name="label_91">
+             <property name="text">
+              <string>hPa / min</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QGroupBox" name="groupBox_6">
+        <property name="font">
+         <font>
+          <family>Inter</family>
+          <pointsize>-1</pointsize>
+          <weight>62</weight>
+          <bold>true</bold>
+         </font>
+        </property>
+        <property name="title">
+         <string>UUT to OFV (RS422)</string>
+        </property>
+        <layout class="QGridLayout" name="gridLayout_4">
+         <item row="0" column="0">
+          <widget class="QLabel" name="label_51">
+           <property name="font">
+            <font>
+             <family>Inter</family>
+             <pointsize>-1</pointsize>
+             <weight>75</weight>
+             <bold>true</bold>
+            </font>
+           </property>
+           <property name="text">
+            <string>COMMANDED POSITION</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="QLCDNumber" name="lcdNumber_3"/>
+         </item>
+         <item row="0" column="2">
+          <widget class="QLabel" name="label_52">
+           <property name="text">
+            <string>degrees</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item row="2" column="2">
+       <widget class="QGroupBox" name="groupBox_5">
+        <property name="font">
+         <font>
+          <family>Inter</family>
+          <pointsize>-1</pointsize>
+          <weight>62</weight>
+          <bold>true</bold>
+         </font>
+        </property>
+        <property name="title">
+         <string>ARINC Label 163</string>
+        </property>
+        <layout class="QGridLayout" name="gridLayout_3">
+         <item row="0" column="0">
+          <widget class="QLabel" name="label_29">
+           <property name="font">
+            <font>
+             <family>Inter</family>
+             <pointsize>-1</pointsize>
+             <weight>75</weight>
+             <bold>true</bold>
+            </font>
+           </property>
+           <property name="text">
+            <string>LANDING FIELD ELEVATION</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="QLCDNumber" name="lcdNumber"/>
+         </item>
+         <item row="0" column="2">
+          <widget class="QLabel" name="label_30">
+           <property name="text">
+            <string>ft.</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item row="2" column="3">
+       <widget class="QGroupBox" name="groupBox_11">
+        <property name="font">
+         <font>
+          <family>Inter</family>
+          <pointsize>-1</pointsize>
+          <weight>62</weight>
+          <bold>true</bold>
+         </font>
+        </property>
+        <property name="title">
+         <string>SDAC ACTIVITY</string>
+        </property>
+        <layout class="QGridLayout" name="gridLayout_2">
+         <item row="0" column="0">
+          <widget class="QRadioButton" name="sdac_1">
+           <property name="text">
+            <string>SDAC 1</string>
+           </property>
+           <property name="checkable">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="QRadioButton" name="sdac_2">
+           <property name="text">
+            <string>SDAC 2</string>
+           </property>
+           <property name="checkable">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item row="2" column="4">
+       <widget class="QPushButton" name="pushButton">
+        <property name="text">
+         <string>Exit</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+    <widget class="QWidget" name="tab_2">
+     <attribute name="title">
+      <string>CPC 20791 In</string>
+     </attribute>
+     <widget class="QGroupBox" name="groupBox_7">
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>250</y>
+        <width>1061</width>
+        <height>61</height>
+       </rect>
+      </property>
+      <property name="font">
+       <font>
+        <family>Inter</family>
+        <pointsize>-1</pointsize>
+        <weight>62</weight>
+        <bold>true</bold>
+       </font>
+      </property>
+      <property name="title">
+       <string> OFV to CPC (RS422)</string>
+      </property>
+      <widget class="QLabel" name="label_53">
+       <property name="geometry">
+        <rect>
+         <x>20</x>
+         <y>30</y>
+         <width>171</width>
+         <height>16</height>
+        </rect>
+       </property>
+       <property name="font">
+        <font>
+         <family>Inter</family>
+         <pointsize>-1</pointsize>
+         <weight>75</weight>
+         <bold>true</bold>
+        </font>
+       </property>
+       <property name="text">
+        <string>CURRENT POSITION</string>
+       </property>
+      </widget>
+      <widget class="QLCDNumber" name="lcdNumber_4">
+       <property name="geometry">
+        <rect>
+         <x>170</x>
+         <y>20</y>
+         <width>64</width>
+         <height>31</height>
+        </rect>
+       </property>
+      </widget>
+      <widget class="QLabel" name="label_54">
+       <property name="geometry">
+        <rect>
+         <x>240</x>
+         <y>30</y>
+         <width>47</width>
+         <height>13</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>degrees</string>
+       </property>
+      </widget>
+     </widget>
+     <widget class="QGroupBox" name="groupBox_8">
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>10</y>
+        <width>1061</width>
+        <height>241</height>
+       </rect>
+      </property>
+      <property name="font">
+       <font>
+        <family>Inter</family>
+        <pointsize>-1</pointsize>
+        <weight>62</weight>
+        <bold>true</bold>
+       </font>
+      </property>
+      <property name="title">
+       <string>ARINC to CPC</string>
+      </property>
+      <widget class="QGroupBox" name="groupBox">
+       <property name="geometry">
+        <rect>
+         <x>10</x>
+         <y>60</y>
+         <width>341</width>
+         <height>80</height>
+        </rect>
+       </property>
+       <property name="title">
+        <string>ADIRS</string>
+       </property>
+       <widget class="QLabel" name="label_57">
+        <property name="geometry">
+         <rect>
+          <x>10</x>
+          <y>20</y>
+          <width>171</width>
+          <height>16</height>
+         </rect>
+        </property>
+        <property name="font">
+         <font>
+          <family>Inter</family>
+          <pointsize>-1</pointsize>
+          <weight>75</weight>
+          <bold>true</bold>
+         </font>
+        </property>
+        <property name="text">
+         <string>Static ambient pressure</string>
+        </property>
+       </widget>
+       <widget class="QLabel" name="label_58">
+        <property name="geometry">
+         <rect>
+          <x>10</x>
+          <y>50</y>
+          <width>171</width>
+          <height>16</height>
+         </rect>
+        </property>
+        <property name="font">
+         <font>
+          <family>Inter</family>
+          <pointsize>-1</pointsize>
+          <weight>75</weight>
+          <bold>true</bold>
+         </font>
+        </property>
+        <property name="text">
+         <string>True airspeed</string>
+        </property>
+       </widget>
+       <widget class="QLineEdit" name="static_pressure">
+        <property name="geometry">
+         <rect>
+          <x>180</x>
+          <y>20</y>
+          <width>113</width>
+          <height>20</height>
+         </rect>
+        </property>
+        <property name="toolTip">
+         <string>E7F80165 default label</string>
+        </property>
+       </widget>
+       <widget class="QLineEdit" name="true_airspeed">
+        <property name="geometry">
+         <rect>
+          <x>180</x>
+          <y>50</y>
+          <width>113</width>
+          <height>20</height>
+         </rect>
+        </property>
+        <property name="toolTip">
+         <string>6C800111 E0C80111 default</string>
+        </property>
+       </widget>
+       <widget class="QLabel" name="label_59">
+        <property name="geometry">
+         <rect>
+          <x>301</x>
+          <y>56</y>
+          <width>47</width>
+          <height>13</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>Kts</string>
+        </property>
+       </widget>
+       <widget class="QLabel" name="label_60">
+        <property name="geometry">
+         <rect>
+          <x>301</x>
+          <y>28</y>
+          <width>47</width>
+          <height>13</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>hPa</string>
+        </property>
+       </widget>
+      </widget>
+      <widget class="QGroupBox" name="groupBox_4">
+       <property name="geometry">
+        <rect>
+         <x>360</x>
+         <y>60</y>
+         <width>681</width>
+         <height>171</height>
+        </rect>
+       </property>
+       <property name="title">
+        <string>CFDS</string>
+       </property>
+       <widget class="QLabel" name="label_65">
+        <property name="geometry">
+         <rect>
+          <x>10</x>
+          <y>20</y>
+          <width>231</width>
+          <height>16</height>
+         </rect>
+        </property>
+        <property name="font">
+         <font>
+          <family>Inter</family>
+          <pointsize>-1</pointsize>
+          <weight>75</weight>
+          <bold>true</bold>
+         </font>
+        </property>
+        <property name="text">
+         <string>Universal time coordinated (U.T.C.)</string>
+        </property>
+       </widget>
+       <widget class="QLabel" name="label_66">
+        <property name="geometry">
+         <rect>
+          <x>10</x>
+          <y>50</y>
+          <width>171</width>
+          <height>16</height>
+         </rect>
+        </property>
+        <property name="font">
+         <font>
+          <family>Inter</family>
+          <pointsize>-1</pointsize>
+          <weight>75</weight>
+          <bold>true</bold>
+         </font>
+        </property>
+        <property name="text">
+         <string>Flight phase</string>
+        </property>
+       </widget>
+       <widget class="QLineEdit" name="utc">
+        <property name="geometry">
+         <rect>
+          <x>309</x>
+          <y>20</y>
+          <width>113</width>
+          <height>20</height>
+         </rect>
+        </property>
+        <property name="toolTip">
+         <string>855254AA default</string>
+        </property>
+       </widget>
+       <widget class="QLineEdit" name="flight_phase">
+        <property name="geometry">
+         <rect>
+          <x>309</x>
+          <y>50</y>
+          <width>113</width>
+          <height>20</height>
+         </rect>
+        </property>
+       </widget>
+       <widget class="QLabel" name="label_69">
+        <property name="geometry">
+         <rect>
+          <x>10</x>
+          <y>80</y>
+          <width>171</width>
+          <height>16</height>
+         </rect>
+        </property>
+        <property name="font">
+         <font>
+          <family>Inter</family>
+          <pointsize>-1</pointsize>
+          <weight>75</weight>
+          <bold>true</bold>
+         </font>
+        </property>
+        <property name="text">
+         <string>BITE Commands</string>
+        </property>
+       </widget>
+       <widget class="QLabel" name="label_70">
+        <property name="geometry">
+         <rect>
+          <x>10</x>
+          <y>110</y>
+          <width>171</width>
+          <height>16</height>
+         </rect>
+        </property>
+        <property name="font">
+         <font>
+          <family>Inter</family>
+          <pointsize>-1</pointsize>
+          <weight>75</weight>
+          <bold>true</bold>
+         </font>
+        </property>
+        <property name="text">
+         <string>DATE</string>
+        </property>
+       </widget>
+       <widget class="QLabel" name="label_71">
+        <property name="geometry">
+         <rect>
+          <x>10</x>
+          <y>140</y>
+          <width>171</width>
+          <height>16</height>
+         </rect>
+        </property>
+        <property name="font">
+         <font>
+          <family>Inter</family>
+          <pointsize>-1</pointsize>
+          <weight>75</weight>
+          <bold>true</bold>
+         </font>
+        </property>
+        <property name="text">
+         <string>Aircraft Identification</string>
+        </property>
+       </widget>
+       <widget class="QLineEdit" name="bite_commands">
+        <property name="geometry">
+         <rect>
+          <x>310</x>
+          <y>80</y>
+          <width>113</width>
+          <height>20</height>
+         </rect>
+        </property>
+       </widget>
+       <widget class="QLineEdit" name="date">
+        <property name="geometry">
+         <rect>
+          <x>310</x>
+          <y>110</y>
+          <width>113</width>
+          <height>20</height>
+         </rect>
+        </property>
+       </widget>
+       <widget class="QLineEdit" name="aircraft_id">
+        <property name="geometry">
+         <rect>
+          <x>310</x>
+          <y>140</y>
+          <width>113</width>
+          <height>20</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>NORDMIC</string>
+        </property>
+       </widget>
+      </widget>
+      <widget class="QGroupBox" name="groupBox_9">
+       <property name="geometry">
+        <rect>
+         <x>10</x>
+         <y>150</y>
+         <width>341</width>
+         <height>80</height>
+        </rect>
+       </property>
+       <property name="title">
+        <string>FMS</string>
+       </property>
+       <widget class="QLabel" name="label_82">
+        <property name="geometry">
+         <rect>
+          <x>10</x>
+          <y>20</y>
+          <width>171</width>
+          <height>16</height>
+         </rect>
+        </property>
+        <property name="font">
+         <font>
+          <family>Inter</family>
+          <pointsize>-1</pointsize>
+          <weight>75</weight>
+          <bold>true</bold>
+         </font>
+        </property>
+        <property name="text">
+         <string>Validity word discrete</string>
+        </property>
+       </widget>
+       <widget class="QLabel" name="label_83">
+        <property name="geometry">
+         <rect>
+          <x>10</x>
+          <y>50</y>
+          <width>171</width>
+          <height>16</height>
+         </rect>
+        </property>
+        <property name="font">
+         <font>
+          <family>Inter</family>
+          <pointsize>-1</pointsize>
+          <weight>75</weight>
+          <bold>true</bold>
+         </font>
+        </property>
+        <property name="text">
+         <string>LFE in feet</string>
+        </property>
+       </widget>
+       <widget class="QLineEdit" name="valid_word_discrete">
+        <property name="geometry">
+         <rect>
+          <x>180</x>
+          <y>20</y>
+          <width>113</width>
+          <height>20</height>
+         </rect>
+        </property>
+        <property name="toolTip">
+         <string>00002097</string>
+        </property>
+       </widget>
+       <widget class="QLineEdit" name="lfe_in_feet">
+        <property name="geometry">
+         <rect>
+          <x>180</x>
+          <y>50</y>
+          <width>113</width>
+          <height>20</height>
+         </rect>
+        </property>
+        <property name="toolTip">
+         <string>60FA0175</string>
+        </property>
+       </widget>
+       <widget class="QLabel" name="label_84">
+        <property name="geometry">
+         <rect>
+          <x>301</x>
+          <y>56</y>
+          <width>47</width>
+          <height>13</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>ft.</string>
+        </property>
+       </widget>
+       <widget class="QLabel" name="label_85">
+        <property name="geometry">
+         <rect>
+          <x>301</x>
+          <y>28</y>
+          <width>47</width>
+          <height>13</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+       </widget>
+      </widget>
+      <widget class="QPushButton" name="setDefaultButton">
+       <property name="geometry">
+        <rect>
+         <x>20</x>
+         <y>30</y>
+         <width>101</width>
+         <height>23</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>SET DEFAULT</string>
+       </property>
+      </widget>
+     </widget>
+    </widget>
+    <widget class="QWidget" name="tab">
+     <attribute name="title">
+      <string>UUT BITE</string>
+     </attribute>
+    </widget>
+    <widget class="QWidget" name="tab_3">
+     <attribute name="title">
+      <string>NVM Readout</string>
+     </attribute>
+    </widget>
+   </widget>
+  </widget>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>1920</width>
+     <height>44</height>
+    </rect>
+   </property>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

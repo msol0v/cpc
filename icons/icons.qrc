@@ -1,0 +1,8 @@
+<RCC>
+  <qresource prefix="exit">
+    <file>exit_icon.png</file>
+  </qresource>
+  <qresource prefix="min">
+    <file>min_icon.png</file>
+  </qresource>
+</RCC>

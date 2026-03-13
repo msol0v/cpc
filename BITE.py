@@ -1,13 +1,13 @@
 import numpy as np
 
-#InMemoryFaultMatrix = np.zeros(6, 19)
-
-BASE_FAULT_CODE_104=0
-BASE_FAULT_CODE_105=19
-BASE_FAULT_CODE_106=38
-BASE_FAULT_CODE_107=57
-BASE_FAULT_CODE_110=76
-BASE_FAULT_CODE_111=95
+base = {
+    104: 0,
+    105: 16,
+    106: 32,
+    107: 48,
+    110: 64,
+    111: 80
+}
 
 class FaultBit():
     """
@@ -210,11 +210,9 @@ def ConfigureFaultBits (product='not 20791-xxAD'):
         FaultBit(95, 'UNUSED'),
         FaultBit(96, 'EXC_CAB_ALT_WARNING'),
     ]
+    Faults.extend(_faults)
 
 
 def test_config():
     ConfigureFaultBits()
     print(f'Len faults: {len(Faults)}\n\n')
-
-    for fault in Faults:
-        print(fault)

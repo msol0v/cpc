@@ -1,11 +1,13 @@
 from PyQt5 import QtWidgets, QtCore
 from PyQt5.QtCore import QThread, pyqtSlot, pyqtSignal, QTimer
-from PyQt5.QtWidgets import QRadioButton, QDesktopWidget
+from PyQt5.QtWidgets import QRadioButton, QDesktopWidget, QTableWidgetItem, QDialog, QVBoxLayout, QLabel
+from PyQt5.QtGui import QColor, QBrush
 from _ui_main_window import Ui_MainWindow
 import os
 import json
 from arinc_handler import ArincWorker
 from RS_handler import RsWorker
+import BITE
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -45,9 +47,53 @@ class MainWindow(QtWidgets.QMainWindow):
         self.arinc_handler.sig_353.connect(self.slot_353_word)
         self.arinc_handler.sig_163.connect(self.slot_163_word)
         self.arinc_handler.sig_057.connect(self.slot_057_word)
+        self.arinc_handler.sig_104.connect(self.slot_104_word)
+        self.arinc_handler.sig_105.connect(self.slot_105_word)
+        self.arinc_handler.sig_106.connect(self.slot_106_word)
+        self.arinc_handler.sig_107.connect(self.slot_107_word)
+        self.arinc_handler.sig_110.connect(self.slot_110_word)
+        self.arinc_handler.sig_111.connect(self.slot_111_word)
+
+        ###
+        BITE.ConfigureFaultBits()
+        # Настройка таблицы (делается один раз при инициализации)
+        self.ui.tableWidget.cellDoubleClicked.connect(self.show_row_info)
+
+        self.ui.tableWidget.setColumnCount(4)
+        self.ui.tableWidget.setHorizontalHeaderLabels(["Fault Code", "Name", "Class", "Cause"])
+        self.ui.tableWidget.setRowCount(len(BITE.Faults))
+        self.ui.tableWidget.setWordWrap(True)
+        self.ui.tableWidget.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
+
+        current_font = self.ui.tableWidget.font()
+        current_font.setPointSize(13)
+        current_font.setBold(True)
+        self.ui.tableWidget.setFont(current_font)
+
+        for row, fault in enumerate(BITE.Faults):
+            for col, value in enumerate([fault.code, fault.name, fault.fault_class, fault.cause]):
+                item = QTableWidgetItem(str(value))
+                item.setBackground(QColor(255, 255, 255))  # белый фон по умолчанию
+                self.ui.tableWidget.setItem(row, col, item)
+
+        self.ui.tableWidget.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.Stretch)
+        self.ui.tableWidget.resizeRowsToContents()
+        self.ui.tableWidget.verticalHeader().setVisible(False)
+        ###
 
         self.arinc_thread.start()
         self.sig_run_arinc_handler.emit()
+
+    @pyqtSlot(int, int)
+    def show_row_info(self, row, column):
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f'Info {BITE.Faults[row].name}')
+        dlg.setMinimumWidth(300)
+        layout = QVBoxLayout()
+        label = QLabel(BITE.Faults[row].descriptor)
+        layout.addWidget(label)
+        dlg.setLayout(layout)
+        dlg.show()
 
     def parse_dict_to_radio(self, dict_data):
         for key, value in dict_data.items():
@@ -59,6 +105,17 @@ class MainWindow(QtWidgets.QMainWindow):
                     box_1.setChecked(True)
                 else:
                     box_0.setChecked(True)
+
+    def set_row_color(self,fault_bits, base):
+        for bit in range(16):
+            bit_value = (fault_bits >> bit) & 1
+            color = QColor(255, 165, 0) if bit_value else QColor(255, 255, 255)
+            for col in range(self.ui.tableWidget.columnCount()):
+                item = self.ui.tableWidget.item(bit+base, col)
+                if item:
+                    item.setBackground(QBrush(color))
+
+        self.ui.tableWidget.viewport().update()
 
     @pyqtSlot()
     def on_action_exit_clicked(self):
@@ -209,3 +266,28 @@ class MainWindow(QtWidgets.QMainWindow):
     @pyqtSlot(str)
     def slot_arinc_handler_error(self, error:str):
         print('arinc handler error: ', error)
+
+    @pyqtSlot(int)
+    def slot_104_word(self, fault_bits: int):
+        self.set_row_color(fault_bits, BITE.base[104])
+
+    @pyqtSlot(int)
+    def slot_105_word(self, fault_bits: int):
+        self.set_row_color(fault_bits, BITE.base[105])
+
+    @pyqtSlot(int)
+    def slot_106_word(self, fault_bits: int):
+        self.set_row_color(fault_bits, BITE.base[106])
+
+    @pyqtSlot(int)
+    def slot_107_word(self, fault_bits: int):
+        self.set_row_color(fault_bits, BITE.base[107])
+
+    @pyqtSlot(int)
+    def slot_110_word(self, fault_bits: int):
+        self.set_row_color(fault_bits, BITE.base[110])
+
+    @pyqtSlot(int)
+    def slot_111_word(self, fault_bits: int):
+        self.set_row_color(fault_bits, BITE.base[111])
+

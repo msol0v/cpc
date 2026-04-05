@@ -1,3 +1,6 @@
+import faulthandler
+faulthandler.enable()
+
 from PyQt5 import QtWidgets, QtCore
 from PyQt5.QtCore import QThread, pyqtSlot, pyqtSignal, QTimer
 from PyQt5.QtWidgets import QRadioButton, QDesktopWidget, QTableWidgetItem, QDialog, QVBoxLayout, QLabel
@@ -8,38 +11,88 @@ import json
 from arinc_handler import ArincWorker
 from RS_handler import RsWorker
 import BITE
+from openpyxl import load_workbook
+import uut_encode
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
 
 class MainWindow(QtWidgets.QMainWindow):
 
     sig_run_arinc_handler = pyqtSignal()
+    sig_change_bite_ofv = pyqtSignal(int)
+
+    sig_r_nvram = pyqtSignal(bool, int)
+    sig_w_nvram = pyqtSignal(bool, int, int)
+
+    sig_change_uut_in_words = pyqtSignal(dict)
 
     def __init__(self):
         super(MainWindow, self).__init__()
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
 
-        self.showFullScreen()
-
         # Get com-ports names
         with open('ports.json', 'r', encoding='utf-8') as f:
             ports = json.load(f)
 
+        # Treads
         self.arinc_thread = QThread()
         self.arinc_handler = ArincWorker(ports['arinc-com'])
         self.arinc_handler.moveToThread(self.arinc_thread)
-        #self.rs_handler = RsWorker(ports['rs-422'])
 
-        #actions
-        self.ui.action_exit.triggered.connect(self.on_action_exit_clicked)
-        self.ui.action_min.triggered.connect(self.on_action_min_clicked)
+        self.rs_thread = QThread()
+        self.rs_handler = RsWorker()
+        self.rs_handler.moveToThread(self.rs_thread)
+        self.rs_thread.started.connect(self.rs_handler.start)
+
 
         # Signals connection
         self.arinc_handler.sig_error.connect(self.slot_arinc_handler_error)
         self.arinc_handler.sig_connected.connect(self.slot_arinc_handler_connected)
         self.sig_run_arinc_handler.connect(self.arinc_handler.slot_connect)
+
+        self.ui.rButton.clicked.connect(self.on_rButton_clicked)
+        self.sig_r_nvram.connect(self.rs_handler.slot_read)
+        self.ui.wButton.clicked.connect(self.on_wButton_clicked)
+        self.sig_w_nvram.connect(self.rs_handler.slot_write)
+        self.rs_handler.sig_rw_reply.connect(self.slot_rw_reply)
+
+        self.rs_handler.handler.sig_normal_resp.connect(self.slot_show_commanded_pos)
+        self.rs_handler.signal_pc_alt.connect(self.slot_show_uut_to_operator)
+        self.ui.buttonGroup_28.buttonClicked.connect(self.rs_handler.slot_bite_change)
+        self.ui.readConstsButton.clicked.connect(self.rs_handler.slot_get_consts)
+        self.rs_handler.sig_send_consts.connect(self.slot_show_consts)
+        self.rs_handler.sig_progress_read_buffs.connect(self.slot_show_progress_read_buffs)
+
+        # Save button
+        self.ui.saveButton.clicked.connect(self.slot_save)
+
+        # Faults Buffers
+        self.ui.readFBuffersButton.clicked.connect(self.rs_handler.read_fbuffs)
+        self.rs_handler.sig_show_fbuffs.connect(self.show_fbuffs)
+
+        #TEST
+        self.ui.testButton.clicked.connect(self.rs_handler.test)
+
+        # uut in
+        self.sig_change_uut_in_words.connect(self.arinc_handler.slot_change_uut_word)
         self.ui.setDefaultButton.clicked.connect(self.slot_set_default_button)
+        self.ui.pushButton_setCustom_cfds.clicked.connect(self.slot_change_cfds)
+        self.ui.pushButton_setCustom_fms.clicked.connect(self.slot_change_fms)
+        self.ui.pushButton_setCustom_adirs.clicked.connect(self.slot_change_adirs)
+        self.default_uut_in_params = {
+            '246': '1020',
+            '210': '100',
+            '125': '855254AA',
+            '126': 'E000006A',
+            '227': '1105C0E9',
+            '260': '14CA140D',
+            '301': '529F3883',
+            '302': 'C99B1043',
+            '303': '00010CC3',
+            '351': '00002097',
+            '256': '992'
+        }
 
         #labels
         self.arinc_handler.sig_bus_activity.connect(self.slot_bus_activity)
@@ -81,8 +134,100 @@ class MainWindow(QtWidgets.QMainWindow):
         self.ui.tableWidget.verticalHeader().setVisible(False)
         ###
 
+        ### Настройка таблицы констант
+        self.ui.tableWidget_consts.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.Stretch)
+        self.ui.tableWidget_consts.resizeRowsToContents()
+        self.ui.tableWidget_consts.verticalHeader().setVisible(False)
+
+        ### Настройка fbuffs
+        self.ui.tableWidget_FBuffers.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.Stretch)
+        self.ui.tableWidget_FBuffers.resizeRowsToContents()
+        self.ui.tableWidget_FBuffers.verticalHeader().setVisible(False)
+
+        # Выставляем значения uut in по умолчанию и отправляем arinc_handler чтобы тоже выставил
+        self.slot_set_default_button()
+
         self.arinc_thread.start()
         self.sig_run_arinc_handler.emit()
+        self.rs_thread.start()
+
+    @pyqtSlot()
+    def slot_save(self):
+        if self.ui.progressBar.value() == 100:
+            if self.rs_handler.pn is None: self.rs_handler.pn = self.rs_handler.read_pn()
+            if self.rs_handler.sn is None:  self.rs_handler.sn = self.rs_handler.read_sn()
+            book = load_workbook(base_dir + '/base_xlsx/moduleCPC.xlsx')
+            wl = book.get_sheet_by_name('com')
+            for i, rbyte in enumerate(self.rs_handler.raw_buffs, 1):
+                wl.cell(i,1,value=rbyte)
+            book.save(f'{base_dir}/base_xlsx/moduleCPC_{self.rs_handler.pn}_{self.rs_handler.sn}.xlsx')
+
+
+    @pyqtSlot()
+    def slot_change_cfds(self):
+        words = {
+            '125': self.ui.lineEdit_125.text(),
+            '126': self.ui.lineEdit_126.text(),
+            '227': self.ui.lineEdit_227.text(),
+            '260': self.ui.lineEdit_260.text(),
+            '301': self.ui.lineEdit_301.text(),
+            '302': self.ui.lineEdit_302.text(),
+            '303': self.ui.lineEdit_303.text(),
+        }
+        self.sig_change_uut_in_words.emit(words)
+
+    @pyqtSlot()
+    def slot_change_fms(self):
+        words = {
+            '351': self.ui.valid_word_discrete.text(),
+            '256': uut_encode.encode_256(int(self.ui.lfe_in_feet.text()))
+        }
+        self.sig_change_uut_in_words.emit(words)
+
+    @pyqtSlot()
+    def slot_change_adirs(self):
+        words = {
+            '246': uut_encode.encode_246(int(self.ui.static_pressure.text())),
+            '210': uut_encode.encode_210(int(self.ui.true_airspeed.text())),
+        }
+        self.sig_change_uut_in_words.emit(words)
+
+    @pyqtSlot()
+    def on_rButton_clicked(self):
+        try:
+            addr = int(self.ui.lineEdit_r_addr.text(), 16)
+            if 0 > addr > 0xFFFF:
+                print('Invalid address')
+                self.ui.lineEdit_r_addr.setText("")
+                return
+        except ValueError:
+            print('Invalid address')
+            self.ui.lineEdit_r_addr.setText("")
+            return
+        state = self.ui.radioButton_r_0.isChecked()
+        self.sig_r_nvram.emit(state, addr)
+
+
+    @pyqtSlot()
+    def on_wButton_clicked(self):
+        try:
+            addr = int(self.ui.lineEdit_w_addr.text(), 16)
+            data = int(self.ui.lineEdit_w_data.text(), 16)
+            if 0 > addr > 0xFFFF:
+                print('Invalid address')
+                return
+        except ValueError:
+            print('Invalid address')
+            return
+        state = self.ui.radioButton_w_0.isChecked()
+        self.sig_w_nvram.emit(state, addr, data)
+
+    @pyqtSlot(int, str)
+    def slot_rw_reply(self, r0_w1, reply):
+        if r0_w1 == 0:
+            self.ui.lineEdit_r_reply.setText(reply)
+        else:
+            self.ui.lineEdit_w_reply.setText(reply)
 
     @pyqtSlot(int, int)
     def show_row_info(self, row, column):
@@ -117,6 +262,17 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.ui.tableWidget.viewport().update()
 
+    @pyqtSlot(int)
+    def slot_show_progress_read_buffs(self, progr: int):
+        self.ui.progressBar.setValue(progr)
+
+    @pyqtSlot(list)
+    def show_fbuffs(self, buffs: list):
+        self.ui.tableWidget_FBuffers.setRowCount(len(buffs))
+        for i, buffer in enumerate(buffs):
+            for j, (key, value) in enumerate(buffer.__dict__.items()):
+                self.ui.tableWidget_FBuffers.setItem(i, j, QTableWidgetItem(str(value)))
+
     @pyqtSlot()
     def on_action_exit_clicked(self):
         exit()
@@ -132,7 +288,40 @@ class MainWindow(QtWidgets.QMainWindow):
 
     @pyqtSlot()
     def slot_set_default_button(self):
-        pass
+        self.ui.lineEdit_125.setText(self.default_uut_in_params['125'])
+        self.ui.lineEdit_126.setText(self.default_uut_in_params['126'])
+        self.ui.lineEdit_227.setText(self.default_uut_in_params['227'])
+        self.ui.lineEdit_260.setText(self.default_uut_in_params['260'])
+        self.ui.lineEdit_301.setText(self.default_uut_in_params['301'])
+        self.ui.lineEdit_302.setText(self.default_uut_in_params['302'])
+        self.ui.lineEdit_303.setText(self.default_uut_in_params['303'])
+        self.ui.valid_word_discrete.setText(self.default_uut_in_params['351'])
+        self.ui.lfe_in_feet.setText(self.default_uut_in_params['256'])
+        self.ui.static_pressure.setText(self.default_uut_in_params['246'])
+        self.ui.true_airspeed.setText(self.default_uut_in_params['210'])
+
+        self.slot_change_fms()
+        self.slot_change_cfds()
+        self.slot_change_adirs()
+
+
+    @pyqtSlot(dict)
+    def slot_show_consts(self, consts: dict):
+        self.ui.tableWidget_consts.setRowCount(len(consts))
+        for i, (key, value) in enumerate(consts.items()):
+            self.ui.tableWidget_consts.setItem(i, 0, QTableWidgetItem(key))
+            self.ui.tableWidget_consts.setItem(i, 1, QTableWidgetItem(str(value)))
+
+    @pyqtSlot(tuple)
+    def slot_show_commanded_pos(self, br_zc):
+        br, zc = br_zc
+        self.ui.lcdNumber_comPos.display(br)
+
+    @pyqtSlot(tuple)
+    def slot_show_uut_to_operator(self, pc_alt):
+        pc, alt = pc_alt
+        self.ui.lcdNumber_pc.display(pc)
+        self.ui.lcdNumber_alt.display(alt)
 
     @pyqtSlot(dict)
     def slot_352_word(self, disc_sig_dict):

@@ -1,5 +1,6 @@
 
 import argparse
+from time import sleep
 
 import serial
 
@@ -14,11 +15,11 @@ class PowerHandler():
 
         self.port = serial.Serial(self.portName, self.baudrate)
 
+    def checkConnection(self):
         self.port.write('*IDN?\n'.encode())
         idnStr = self.port.readline().decode()
         if not idnStr:
             exit("No response from pwr module")
-
         print(idnStr)
         self.connected = True
 
@@ -46,11 +47,11 @@ class PowerHandler():
         self.port.write(f'VOUT{chan}?\n'.encode())
         return self.port.readline().decode()
 
-    def on(self, chan:int=1):
-        self.port.write(f'OUT{chan}\n'.encode())
+    def on(self):
+        self.port.write(f'OUT1\n'.encode())
 
-    def off(self, chan:int=1):
-        self.port.write(f'OUT{chan}\n'.encode())
+    def off(self):
+        self.port.write(f'OUT0\n'.encode())
 
     def status(self):
         print(f'Now I set: {self.getI()}A')
@@ -88,9 +89,12 @@ def main():
     match mode:
         case 'on':
             pwr.on()
-            pwr.status()
+            #sleep(1)
+            #pwr.status()
         case 'off':
             pwr.off()
+            #sleep(1)
+            #pwr.status()
         case 'status':
             pwr.status()
 

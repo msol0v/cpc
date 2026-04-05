@@ -14,6 +14,9 @@ from PyQt5.QtCore import (
 )
 from PyQt5.QtSerialPort import QSerialPort, QSerialPortInfo
 
+
+
+
 def reverse_number(n: int) -> int:
     '''Переворачивает число побитово'''
     reversed_value = 0
@@ -38,7 +41,6 @@ def base8_to_int(label_octet: str) -> int:
 def int_to_base8(label: int) -> str:
     r = reverse_number(label)
     return oct(r)
-
 
 class HandlerRegistry:
     """
@@ -95,6 +97,14 @@ class ArincWorker(QObject):
     sig_163 = pyqtSignal(int)
     sig_057 = pyqtSignal(dict)
 
+    # Сигналы для слов BITE
+    sig_104 = pyqtSignal(int)
+    sig_105 = pyqtSignal(int)
+    sig_106 = pyqtSignal(int)
+    sig_107 = pyqtSignal(int)
+    sig_110 = pyqtSignal(int)
+    sig_111 = pyqtSignal(int)
+
     # Общий сигнал для неизвестных меток (опционально)
     sig_unknown_label = pyqtSignal(int, int)  # label_int, word_int
 
@@ -130,6 +140,8 @@ class ArincWorker(QObject):
         # Создаем кэш для статистики
         self.labels_cache = lables_cache.LabelsCache(stats_interval=120)
 
+        self.uut_in_words = {}
+
     @pyqtSlot()
     def slot_connect(self):
         """
@@ -145,7 +157,7 @@ class ArincWorker(QObject):
 
         # Подключаем сигналы
         self.port.readyRead.connect(self.handle_ready_read)
-        # ИСПРАВЛЕНИЕ: Подключаем сигнал errorOccurred к слоту, который принимает параметр
+        # Подключаем сигнал errorOccurred к слоту, который принимает параметр
         self.port.errorOccurred.connect(self.handle_error)
 
         # Открываем порт
@@ -180,7 +192,6 @@ class ArincWorker(QObject):
             self.port.close()
             self._connected = False
 
-    # ИСПРАВЛЕНИЕ: Добавляем параметр error и декоратор pyqtSlot с указанием типа
     @pyqtSlot(QSerialPort.SerialPortError)
     def handle_error(self, error):
         """Обработка ошибок порта"""
@@ -281,8 +292,8 @@ class ArincWorker(QObject):
                 word_b: bytes = line[4 : -5]
                 label_b = word_b[-1:]
                 # Конвертируем hex в int
-                word_int = int.from_bytes(word_b, 'little')
-                label_int = int.from_bytes(label_b, 'little')
+                word_int = int.from_bytes(word_b, 'big')
+                label_int = int.from_bytes(label_b, 'big')
 
                 # Обновляем активность
                 self._flag_sdac_activity = True
@@ -314,28 +325,59 @@ class ArincWorker(QObject):
         #QThread.msleep(50)
         #self.port.clear()
 
+    @pyqtSlot(dict)
+    def slot_change_uut_word(self, words: dict):
+        for label, word in words.items():
+            self.uut_in_words[label] = word
+
+        print(self.uut_in_words)
+
     @pyqtSlot()
     def slot_timer_1sec(self):
         self.sig_bus_activity.emit(self._flag_sdac_activity)
         self._flag_sdac_activity = False  # Сбрасываем флаг
-        self.send_word_list(['855254AA', 'E000006A', '14CA140D',
-                             '529F3883', 'C99B1043', '00010CC3'])
+        words = [
+            self.uut_in_words.get('125'),
+            self.uut_in_words.get('126'),
+            self.uut_in_words.get('260'),
+            self.uut_in_words.get('301'),
+            self.uut_in_words.get('302'),
+            self.uut_in_words.get('303'),
+        ]
+        self.send_word_list(words)
+        # self.send_word_list(['855254AA', 'E000006A', '14CA140D',
+        #                       '529F3883', 'C99B1043', '00010CC3'])
 
     @pyqtSlot()
     def slot_timer_100msec(self):
-        self.send_word_list(['E7F80165'])
+        words = [self.uut_in_words.get('246')]
+        self.send_word_list(words)
+        #self.send_word_list(['E7F80165'])
+        pass
 
     @pyqtSlot()
     def slot_timer_65msec(self):
-        self.send_word_list(['6C800111'])
+        words = [self.uut_in_words.get('210')]
+        self.send_word_list(words)
+        #self.send_word_list(['6C800111'])
+        pass
 
     @pyqtSlot()
     def slot_timer_120msec(self):
-        self.send_word_list(['1105C0E9'])
+        words = [self.uut_in_words.get('227')]
+        self.send_word_list(words)
+        #self.send_word_list(['1105C0E9'])
+        pass
 
     @pyqtSlot()
     def slot_timer_900msec(self):
-        self.send_word_list(['00002097', '60FA0175'])
+        words = [
+            self.uut_in_words.get('351'),
+            self.uut_in_words.get('256')
+        ]
+        self.send_word_list(words)
+        #self.send_word_list(['00002097', '60FA0175'])
+        pass
 
     # Методы для отправки данных
     def send_word_list(self, word_list: list):
@@ -425,43 +467,47 @@ class ArincWorker(QObject):
 
         @self.registry.label_handler('163')
         def label_163(self, word: int):
-            sdi = (word >> 8) & 0x03
-            sign = (word >> 29) & 0x01
-            data = (word >> 15) & 0x3FFF
-            if sign:
-                data = -data
+            data = (word >> 13) & 0xFFF
             self.sig_163.emit(data)
 
         @self.registry.label_handler('104')
         def label_104(self, word: int):
-            pass
+            data = (word >> 10) & 0x7FFFF
+            self.sig_104.emit(data)
 
         @self.registry.label_handler('105')
         def label_105(self, word: int):
-            pass
+            data = (word >> 10) & 0x7FFFF
+            self.sig_105.emit(data)
 
         @self.registry.label_handler('106')
         def label_106(self, word: int):
-            pass
+            data = (word >> 10) & 0x7FFFF
+            self.sig_106.emit(data)
 
         @self.registry.label_handler('107')
         def label_107(self, word: int):
-            pass
+            data = (word >> 10) & 0x7FFFF
+            self.sig_107.emit(data)
 
         @self.registry.label_handler('110')
         def label_110(self, word: int):
-            pass
+            data = (word >> 10) & 0x7FFFF
+            self.sig_110.emit(data)
 
         @self.registry.label_handler('111')
         def label_111(self, word: int):
-            pass
+            data = (word >> 10) & 0x7FFFF
+            self.sig_111.emit(data)
 
         @self.registry.label_handler('356')
         def label_356(self, word: int):
+            #print(f'UUT resp {word:#010X}')
             pass
 
         @self.registry.label_handler('365')
         def label_365(self, word: int):
+            print('EOT from UUT')
             pass
 
         @self.registry.label_handler('144')

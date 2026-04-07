@@ -1,4 +1,5 @@
 import time
+from sys import exception
 from typing import Optional, Dict, List, Any, Callable
 from functools import lru_cache, wraps
 import lables_cache
@@ -89,7 +90,10 @@ class ArincWorker(QObject):
     # Сигналы для передачи данных в главный поток
     sig_error = pyqtSignal(str)
     sig_connected = pyqtSignal()
-    sig_bus_activity = pyqtSignal(bool)
+    sig_bus_activity = pyqtSignal(dict)
+    sig_start_activity_timer = pyqtSignal()
+    sig_timer_connecting_start = pyqtSignal()
+    sig_timer_connecting_stop = pyqtSignal()
 
     # Сигналы для каждого типа меток
     sig_352 = pyqtSignal(dict)
@@ -119,7 +123,7 @@ class ArincWorker(QObject):
         # Состояние
         self._connected = False
         self._waiting_for_version = True
-        self._flag_sdac_activity = False
+        self.sdac_activity = {'sdac_0':False, 'sdac_1':False}
 
         # Буфер для накопления данных
         self._rx_buffer = b''
@@ -163,17 +167,17 @@ class ArincWorker(QObject):
         # Открываем порт
         mode = QIODevice.OpenMode(QIODevice.ReadWrite)
         if not self.port.open(mode):
-            self.sig_error.emit(f"Cannot open port: {self._port_name}")
+            self.stop()
             return False
 
-        print(f"Port {self._port_name} opened successfully")
+        print(f"ARINC port {self._port_name} opened successfully")
 
         # Отправляем команду version
         self._waiting_for_version = True
         self.port.write('version\n'.encode('utf-8'))
 
         # Запускаем таймер активности
-        self.activity_timer.start()
+        self.sig_timer_connecting_start.emit()
 
         return True
 
@@ -181,7 +185,6 @@ class ArincWorker(QObject):
     def stop(self):
         """Остановка работы"""
         self.activity_timer.stop()
-        self.timer_5min.stop()
         self.timer_1sec.stop()
         self.timer_100msec.stop()
         self.timer_65msec.stop()
@@ -196,9 +199,8 @@ class ArincWorker(QObject):
     def handle_error(self, error):
         """Обработка ошибок порта"""
         if error != QSerialPort.NoError:  # Игнорируем "нет ошибки"
-            error_string = self.port.errorString() if self.port else "Unknown error"
-            print(f"Port error: {error} - {error_string}")
-            self.sig_error.emit(f"Port error: {error_string}")
+            error_string = f'Port {self._port_name} error\n\r{self.port.errorString()}' if self.port else "Unknown error"
+            self.sig_error.emit(error_string)
 
     def _setup_timers(self):
         """Настройка таймеров"""
@@ -224,23 +226,41 @@ class ArincWorker(QObject):
 
         # Таймер проверки активности шины
         self.activity_timer = QTimer()
-        self.activity_timer.setInterval(500)  # Проверка каждые 500 мс
+        self.activity_timer.setInterval(700)
         self.activity_timer.timeout.connect(self._check_activity)
+
+        self.timer_connecting = QTimer()
+        self.timer_connecting.setInterval(1000)
+        self.timer_connecting.setSingleShot(True)
+        self.sig_timer_connecting_start.connect(self.timer_connecting.start)
+        self.sig_timer_connecting_stop.connect(self.timer_connecting.stop)
+        self.timer_connecting.timeout.connect(self.slot_connecting_timeout)
+
 
         self.sig_connected.connect(self.timer_1sec.start)
         self.sig_connected.connect(self.timer_100msec.start)
         self.sig_connected.connect(self.timer_65msec.start)
         self.sig_connected.connect(self.timer_120msec.start)
         self.sig_connected.connect(self.timer_900msec.start)
-        self.sig_connected.connect(self.activity_timer.start)
+        self.sig_start_activity_timer.connect(self.activity_timer.start)
 
+    @pyqtSlot()
     def _check_activity(self):
         """Проверка активности шины"""
         if time.time() - self._last_activity_time > 1.0:
             # Нет активности более 1 секунды
-            if self._flag_sdac_activity:
-                self._flag_sdac_activity = False
-                self.sig_bus_activity.emit(False)
+            self.sdac_activity = {'sdac_0':False, 'sdac_1':False}
+            self.sig_bus_activity.emit(self.sdac_activity)
+            self.stop()
+            self.sig_error.emit('Error: SDAC Bus empty more than 1 sec\n\rARINC Handler Stopped')
+        else:
+            self.sig_bus_activity.emit(self.sdac_activity)
+
+    @pyqtSlot()
+    def slot_connecting_timeout(self):
+        self.stop()
+        self.sig_error.emit('Timeout connecting to Fizika Pribor')
+
 
     @pyqtSlot()
     def handle_ready_read(self):
@@ -277,18 +297,21 @@ class ArincWorker(QObject):
         if self._waiting_for_version:
             line_str = line.decode('utf-8', errors='ignore').strip()
             if line_str == 'ver.USB-BSCk0':
+                self.sig_timer_connecting_stop.emit()
                 self._connected = True
                 self._waiting_for_version = False
                 self.sig_connected.emit()
                 self._configure_fizz()  # Настраиваем преобразователь
                 QThread.msleep(300) #Ожидание, пока порты включатся
-                print("Fizz connected successfully")
+                self.sig_start_activity_timer.emit()
             return
 
         # Обработка ARINC слов
         if line.startswith(b'dat'):
             try:
                 # datNxxxxYYYY\n
+
+                chan = int(line[3:4])
                 word_b: bytes = line[4 : -5]
                 label_b = word_b[-1:]
                 # Конвертируем hex в int
@@ -296,7 +319,7 @@ class ArincWorker(QObject):
                 label_int = int.from_bytes(label_b, 'big')
 
                 # Обновляем активность
-                self._flag_sdac_activity = True
+                self.sdac_activity[f'sdac_{chan}'] = True
 
                 # Вызываем нужный сигнал в зависимости от метки
                 self.call_word_handler(label_int, word_int)
@@ -330,12 +353,8 @@ class ArincWorker(QObject):
         for label, word in words.items():
             self.uut_in_words[label] = word
 
-        print(self.uut_in_words)
-
     @pyqtSlot()
     def slot_timer_1sec(self):
-        self.sig_bus_activity.emit(self._flag_sdac_activity)
-        self._flag_sdac_activity = False  # Сбрасываем флаг
         words = [
             self.uut_in_words.get('125'),
             self.uut_in_words.get('126'),

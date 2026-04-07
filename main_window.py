@@ -3,7 +3,7 @@ faulthandler.enable()
 
 from PyQt5 import QtWidgets, QtCore
 from PyQt5.QtCore import QThread, pyqtSlot, pyqtSignal, QTimer
-from PyQt5.QtWidgets import QRadioButton, QDesktopWidget, QTableWidgetItem, QDialog, QVBoxLayout, QLabel
+from PyQt5.QtWidgets import QRadioButton, QDesktopWidget, QTableWidgetItem, QDialog, QVBoxLayout, QLabel, QMessageBox
 from PyQt5.QtGui import QColor, QBrush
 from _ui_main_window import Ui_MainWindow
 import os
@@ -19,7 +19,7 @@ base_dir = os.path.dirname(os.path.abspath(__file__))
 class MainWindow(QtWidgets.QMainWindow):
 
     sig_run_arinc_handler = pyqtSignal()
-    sig_change_bite_ofv = pyqtSignal(int)
+    sig_change_ofv = pyqtSignal(bool, bool, int)
 
     sig_r_nvram = pyqtSignal(bool, int)
     sig_w_nvram = pyqtSignal(bool, int, int)
@@ -59,7 +59,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.rs_handler.handler.sig_normal_resp.connect(self.slot_show_commanded_pos)
         self.rs_handler.signal_pc_alt.connect(self.slot_show_uut_to_operator)
-        self.ui.buttonGroup_28.buttonClicked.connect(self.rs_handler.slot_bite_change)
         self.ui.readConstsButton.clicked.connect(self.rs_handler.slot_get_consts)
         self.rs_handler.sig_send_consts.connect(self.slot_show_consts)
         self.rs_handler.sig_progress_read_buffs.connect(self.slot_show_progress_read_buffs)
@@ -70,9 +69,6 @@ class MainWindow(QtWidgets.QMainWindow):
         # Faults Buffers
         self.ui.readFBuffersButton.clicked.connect(self.rs_handler.read_fbuffs)
         self.rs_handler.sig_show_fbuffs.connect(self.show_fbuffs)
-
-        #TEST
-        self.ui.testButton.clicked.connect(self.rs_handler.test)
 
         # uut in
         self.sig_change_uut_in_words.connect(self.arinc_handler.slot_change_uut_word)
@@ -93,6 +89,9 @@ class MainWindow(QtWidgets.QMainWindow):
             '351': '00002097',
             '256': '992'
         }
+        self.ui.pushButton_setCustom_ofv.clicked.connect(self.slot_change_ofv)
+        self.sig_change_ofv.connect(self.rs_handler.slot_bite_change)
+        self.default_ofv_pos = 50
 
         #labels
         self.arinc_handler.sig_bus_activity.connect(self.slot_bus_activity)
@@ -193,6 +192,19 @@ class MainWindow(QtWidgets.QMainWindow):
         self.sig_change_uut_in_words.emit(words)
 
     @pyqtSlot()
+    def slot_change_ofv(self):
+        state = bool(self.ui.comboBox_ofv_state.currentIndex())
+        bite_fault_flag = bool(self.ui.comboBox_ofv_bite.currentIndex())
+        position = int(self.ui.lineEdit_ofv_input.text())
+        if position < -2:
+            position = -2
+            self.ui.lineEdit_ofv_input.setText(f'{position}')
+        if position > 122:
+            position = 122
+            self.ui.lineEdit_ofv_input.setText(f'{position}')
+        self.sig_change_ofv.emit(state, bite_fault_flag, position)
+
+    @pyqtSlot()
     def on_rButton_clicked(self):
         try:
             addr = int(self.ui.lineEdit_r_addr.text(), 16)
@@ -273,18 +285,18 @@ class MainWindow(QtWidgets.QMainWindow):
             for j, (key, value) in enumerate(buffer.__dict__.items()):
                 self.ui.tableWidget_FBuffers.setItem(i, j, QTableWidgetItem(str(value)))
 
-    @pyqtSlot()
-    def on_action_exit_clicked(self):
-        exit()
-
-    @pyqtSlot()
-    def on_action_min_clicked(self):
-        self.showMinimized()
-
-    @pyqtSlot(bool)
+    @pyqtSlot(dict)
     def slot_bus_activity(self, active):
-        if active:
+        if active.get('sdac_0'):
             self.ui.sdac_1.setChecked(True)
+        else:
+            self.ui.sdac_1.setChecked(False)
+
+        if active.get('sdac_1'):
+            self.ui.sdac_2.setChecked(True)
+        else:
+            self.ui.sdac_2.setChecked(False)
+
 
     @pyqtSlot()
     def slot_set_default_button(self):
@@ -300,9 +312,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self.ui.static_pressure.setText(self.default_uut_in_params['246'])
         self.ui.true_airspeed.setText(self.default_uut_in_params['210'])
 
+        self.ui.lineEdit_ofv_input.setText(f'{self.default_ofv_pos}')
+        self.ui.comboBox_ofv_state.setCurrentIndex(0)
+        self.ui.comboBox_ofv_bite.setCurrentIndex(0)
+
         self.slot_change_fms()
         self.slot_change_cfds()
         self.slot_change_adirs()
+        self.slot_change_ofv()
 
 
     @pyqtSlot(dict)
@@ -454,7 +471,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     @pyqtSlot(str)
     def slot_arinc_handler_error(self, error:str):
-        print('arinc handler error: ', error)
+        QMessageBox.critical(self, "ARINC Handler Error", error)
 
     @pyqtSlot(int)
     def slot_104_word(self, fault_bits: int):

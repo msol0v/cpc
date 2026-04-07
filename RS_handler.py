@@ -89,6 +89,28 @@ def make_write_byte_command(address: int, byte: int) -> str:
 def make_write_word_command(address: int, word: int) -> str:
     return _make_write_command('N', address, word)
 
+def _encode_ofv_status_packet(motor_state: bool, flag_bite_error_state: bool, position: int) -> bytes:
+    id = 'S'
+    # STATE -  motor powered operational (02H), motor not powered standby (01H), default: operational
+    if motor_state:
+        state = '02'
+    else:
+        state = '01'
+
+    # FLT_MX - No faults; CAB_PRESSURE_SWITCH_ACTUATED = 0
+    if flag_bite_error_state:
+        bite = 'FFFFFFFF'
+    else:
+        bite = '00000000'
+
+    # The conversion from encoded sensed position into degrees is: “convert hexadecimal number into decimal number and divide the decimal
+    # number by 256 decimal”
+    position = (position & 0xFFFF) * 256
+    sended_position = f'{position & 0xFF:02X}{(position >> 8) & 0xFF:02X}'
+    packet_raw = f'{id}{state}{bite}{sended_position}'
+    full_packet = f'{packet_raw}{_calculate_checksum(packet_raw)}'
+    return full_packet.encode('ascii')
+
 ############################################################################################################
 
 class RWTask():
@@ -111,7 +133,11 @@ class RWHandler(QObject):
         super(RWHandler, self).__init__()
 
         self.port = QSerialPort()
-        self.port.setPortName('COM12')
+
+        with open('ports.json', 'r', encoding='utf-8') as f:
+            ports = json.load(f)
+
+        self.port.setPortName(ports.get('rs-422'))
         self.port.setBaudRate(9600)
 
         self.buffer = bytearray()
@@ -146,11 +172,14 @@ class RWHandler(QObject):
         self.sig_request.connect(self.request_to_buf)
 
 ### Protocol ###
-    def decode_commanded_pos_from_uut(self, raw_data: bytes):
-        #br = int(f'{raw_data[3:5]}{raw_data[1:3]}', 16)
-        #zc = int(f'{raw_data[7:9]}{raw_data[5:7]}', 16)
-        br = int(raw_data[1:5], 16).to_bytes(2, byteorder='big').decode('ascii')
-        zc = int(raw_data[5:9], 16).to_bytes(2, byteorder='big').decode('ascii')
+    def decode_commanded_pos_from_uut(self, raw_data: bytearray):
+        decoded_data: str = raw_data.decode('ascii')
+        br_raw: int = int(f'{decoded_data[3:5]}{decoded_data[1:3]}', 16)
+        zc_raw: int = int(f'{decoded_data[7:9]}{decoded_data[5:7]}', 16)
+        br = int(br_raw/256)
+        zc = int(zc_raw/256)
+        if br > 127: br -= 256
+        if zc > 127: zc -= 256
         self.sig_normal_resp.emit((br, zc))
 
     def decode_rw_byte_reply(self, raw_data: str):
@@ -221,6 +250,7 @@ class RWHandler(QObject):
 
     def start(self):
         if not self.open():
+
             return
         self.sig_timers_start.emit()
 
@@ -294,6 +324,7 @@ class RsWorker(QObject):
     sig_rw_reply = pyqtSignal(int, str)
     sig_show_fbuffs = pyqtSignal(list)
     sig_progress_read_buffs = pyqtSignal(int)
+    sig_error = pyqtSignal(str)
 
     def __init__(self):
         super().__init__()
@@ -315,28 +346,7 @@ class RsWorker(QObject):
 
     @pyqtSlot()
     def start(self):
-        # Подписываемся на получение Commanded Position
-        #self.handler.sig_normal_resp.connect(self.commanded_pos_print)
-
-        # Устанавливаем normal op значением c 0 в BITE
-        self.set_ofv_bite(0)
         self.handler.start()
-
-    def set_ofv_bite(self, state: int):
-        match state:
-            case 0:
-                self.handler.set_normal_task(RWTask('S', data=b'S01000000000032F9'))
-            case 1:
-                command: str = f'S01FFFFFFFF0032{_calculate_checksum('S01FFFFFFFF0032')}'
-                self.handler.set_normal_task(RWTask('S', data=command.encode('ascii')))
-            case 2:
-                self.handler.set_normal_task(None)
-
-
-    @pyqtSlot(tuple)
-    def commanded_pos_print(self, br_zc):
-        br, zc = br_zc
-        print(f'BR: {br}, ZC: {zc}')
 
     def read_pc_alt(self):
         pc = self.handler.read_word(0xA004)
@@ -412,10 +422,12 @@ class RsWorker(QObject):
     def slot_write(self, state, addr, data):
         pass
 
-    @pyqtSlot(QAbstractButton)
-    def slot_bite_change(self, button: QAbstractButton):
-        state = int(button.objectName()[-1:])
-        self.set_ofv_bite(state)
+    @pyqtSlot(bool, bool, int)
+    def slot_bite_change(self, state, bite_fault_flag, position):
+        self.handler.set_normal_task(RWTask('S', data=_encode_ofv_status_packet(
+            motor_state=state,
+            flag_bite_error_state=bite_fault_flag,
+            position=position)))
 
     @pyqtSlot()
     def on_timer_poll(self):

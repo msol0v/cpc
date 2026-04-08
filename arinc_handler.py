@@ -3,6 +3,7 @@ from sys import exception
 from typing import Optional, Dict, List, Any, Callable
 from functools import lru_cache, wraps
 import lables_cache
+import json
 
 from PyQt5.QtCore import (
     QObject,
@@ -76,9 +77,6 @@ class HandlerRegistry:
 
         return decorator
 
-class LabelsCache():
-    def __init__(self):
-        self.label_handlers: Dict[str, int] = {}
 
 
 class ArincWorker(QObject):
@@ -115,6 +113,9 @@ class ArincWorker(QObject):
     def __init__(self, port_name: str):
         super().__init__()
 
+        with open('config.json', 'r', encoding='utf-8') as f:
+            self.config = json.load(f)
+
         # Параметры порта
         self._port_name = port_name
         self._baud_rate = 115200
@@ -141,8 +142,9 @@ class ArincWorker(QObject):
         # Счетчик активности шины
         self._last_activity_time = time.time()
 
-        # Создаем кэш для статистики
-        self.labels_cache = lables_cache.LabelsCache(stats_interval=120)
+        if self.config.get('statistic'):
+            # Создаем кэш для статистики
+            self.labels_cache = lables_cache.LabelsCache(stats_interval=120)
 
         self.uut_in_words = {}
 
@@ -330,9 +332,10 @@ class ArincWorker(QObject):
                 print(f"Error parsing ARINC word: {e}")
 
     def call_word_handler(self, label_int: int, word_int: int):
-        #Кэш для статистики
-        label_octal = int_to_base8(label_int)
-        self.labels_cache.put(label_octal, word_int)
+        if self.config.get('statistic'):
+            #Кэш для статистики
+            label_octal = int_to_base8(label_int)
+            self.labels_cache.put(label_octal, word_int)
 
         _handler = self.handlers.get(label_int)
         if _handler is None:

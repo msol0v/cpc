@@ -116,10 +116,8 @@ class ArincWorker(QObject):
         with open('config.json', 'r', encoding='utf-8') as f:
             self.config = json.load(f)
 
-
-
         # Параметры порта
-        self._port_name = self.config['ports']['arinc']
+        self._port_name = port_name
         self._baud_rate = 115200
         self.port = None
 

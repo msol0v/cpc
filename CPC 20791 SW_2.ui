@@ -11,7 +11,7 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>MainWindow</string>
+   <string>TEST PANEL SOFTWARE PN 468361.003 CMM 21-31-21</string>
   </property>
   <property name="styleSheet">
    <string notr="true">/* ============================================
@@ -688,7 +688,7 @@ QDial::handle:hover {
         <string notr="true">CPC 20791 Out</string>
        </attribute>
        <layout class="QGridLayout" name="gridLayout_5">
-        <item row="0" column="0" colspan="5">
+        <item row="0" column="0" colspan="4">
          <widget class="QGroupBox" name="groupBox_3">
           <property name="maximumSize">
            <size>
@@ -1447,184 +1447,7 @@ QDial::handle:hover {
           </layout>
          </widget>
         </item>
-        <item row="2" column="0" rowspan="2">
-         <widget class="QGroupBox" name="groupBox_10">
-          <property name="maximumSize">
-           <size>
-            <width>16777215</width>
-            <height>150</height>
-           </size>
-          </property>
-          <property name="font">
-           <font>
-            <family>Inter</family>
-            <pointsize>-1</pointsize>
-            <weight>62</weight>
-            <bold>true</bold>
-           </font>
-          </property>
-          <property name="title">
-           <string>UUT to operator (RS422)</string>
-          </property>
-          <layout class="QVBoxLayout" name="verticalLayout_31">
-           <item>
-            <layout class="QHBoxLayout" name="horizontalLayout_5">
-             <item>
-              <widget class="QLabel" name="label_88">
-               <property name="font">
-                <font>
-                 <family>Inter</family>
-                 <pointsize>-1</pointsize>
-                 <weight>75</weight>
-                 <bold>true</bold>
-                </font>
-               </property>
-               <property name="text">
-                <string>PRESSURE</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLCDNumber" name="lcdNumber_pc"/>
-             </item>
-             <item>
-              <widget class="QLabel" name="label_89">
-               <property name="text">
-                <string>hPa</string>
-               </property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-           <item>
-            <layout class="QHBoxLayout" name="horizontalLayout_6">
-             <item>
-              <widget class="QLabel" name="label_90">
-               <property name="font">
-                <font>
-                 <family>Inter</family>
-                 <pointsize>-1</pointsize>
-                 <weight>75</weight>
-                 <bold>true</bold>
-                </font>
-               </property>
-               <property name="text">
-                <string>ALT CAB RATO</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLCDNumber" name="lcdNumber_alt"/>
-             </item>
-             <item>
-              <widget class="QLabel" name="label_91">
-               <property name="text">
-                <string>hPa / min</string>
-               </property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-          </layout>
-         </widget>
-        </item>
-        <item row="2" column="1" rowspan="2" colspan="2">
-         <widget class="QGroupBox" name="groupBox_6">
-          <property name="maximumSize">
-           <size>
-            <width>350</width>
-            <height>150</height>
-           </size>
-          </property>
-          <property name="font">
-           <font>
-            <family>Inter</family>
-            <pointsize>-1</pointsize>
-            <weight>62</weight>
-            <bold>true</bold>
-           </font>
-          </property>
-          <property name="title">
-           <string>UUT to OFV (RS422)</string>
-          </property>
-          <layout class="QGridLayout" name="gridLayout_4">
-           <item row="0" column="0">
-            <widget class="QLabel" name="label_51">
-             <property name="font">
-              <font>
-               <family>Inter</family>
-               <pointsize>-1</pointsize>
-               <weight>75</weight>
-               <bold>true</bold>
-              </font>
-             </property>
-             <property name="text">
-              <string>COMMANDED POSITION</string>
-             </property>
-            </widget>
-           </item>
-           <item row="0" column="1">
-            <widget class="QLCDNumber" name="lcdNumber_comPos"/>
-           </item>
-           <item row="0" column="2">
-            <widget class="QLabel" name="label_52">
-             <property name="text">
-              <string>degrees</string>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </widget>
-        </item>
-        <item row="2" column="3" rowspan="2">
-         <widget class="QGroupBox" name="groupBox_5">
-          <property name="maximumSize">
-           <size>
-            <width>335</width>
-            <height>150</height>
-           </size>
-          </property>
-          <property name="font">
-           <font>
-            <family>Inter</family>
-            <pointsize>-1</pointsize>
-            <weight>62</weight>
-            <bold>true</bold>
-           </font>
-          </property>
-          <property name="title">
-           <string>ARINC Label 163</string>
-          </property>
-          <layout class="QGridLayout" name="gridLayout_3">
-           <item row="0" column="0">
-            <widget class="QLabel" name="label_29">
-             <property name="font">
-              <font>
-               <family>Inter</family>
-               <pointsize>-1</pointsize>
-               <weight>75</weight>
-               <bold>true</bold>
-              </font>
-             </property>
-             <property name="text">
-              <string>LANDING FIELD ELEVATION</string>
-             </property>
-            </widget>
-           </item>
-           <item row="0" column="1">
-            <widget class="QLCDNumber" name="lcdNumber"/>
-           </item>
-           <item row="0" column="2">
-            <widget class="QLabel" name="label_30">
-             <property name="text">
-              <string>ft.</string>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </widget>
-        </item>
-        <item row="1" column="0" colspan="5">
+        <item row="1" column="0" colspan="4">
          <widget class="QGroupBox" name="groupBox_2">
           <property name="minimumSize">
            <size>
@@ -2833,14 +2656,173 @@ QDial::handle:hover {
           </layout>
          </widget>
         </item>
-        <item row="2" column="4" rowspan="2">
-         <widget class="QGroupBox" name="groupBox_11">
-          <property name="maximumSize">
+        <item row="2" column="0">
+         <widget class="QGroupBox" name="groupBox_10">
+          <property name="minimumSize">
            <size>
-            <width>16777215</width>
-            <height>150</height>
+            <width>0</width>
+            <height>141</height>
            </size>
           </property>
+          <property name="font">
+           <font>
+            <family>Inter</family>
+            <pointsize>-1</pointsize>
+            <weight>62</weight>
+            <bold>true</bold>
+           </font>
+          </property>
+          <property name="title">
+           <string>UUT to operator (RS422)</string>
+          </property>
+          <layout class="QVBoxLayout" name="verticalLayout_31">
+           <item>
+            <layout class="QHBoxLayout" name="horizontalLayout_5">
+             <item>
+              <widget class="QLabel" name="label_88">
+               <property name="font">
+                <font>
+                 <family>Inter</family>
+                 <pointsize>-1</pointsize>
+                 <weight>75</weight>
+                 <bold>true</bold>
+                </font>
+               </property>
+               <property name="text">
+                <string>PRESSURE</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLCDNumber" name="lcdNumber_pc"/>
+             </item>
+             <item>
+              <widget class="QLabel" name="label_89">
+               <property name="text">
+                <string>hPa</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <layout class="QHBoxLayout" name="horizontalLayout_6">
+             <item>
+              <widget class="QLabel" name="label_90">
+               <property name="font">
+                <font>
+                 <family>Inter</family>
+                 <pointsize>-1</pointsize>
+                 <weight>75</weight>
+                 <bold>true</bold>
+                </font>
+               </property>
+               <property name="text">
+                <string>ALT CAB RATO</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLCDNumber" name="lcdNumber_alt"/>
+             </item>
+             <item>
+              <widget class="QLabel" name="label_91">
+               <property name="text">
+                <string>hPa / min</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item row="2" column="1">
+         <widget class="QGroupBox" name="groupBox_6">
+          <property name="font">
+           <font>
+            <family>Inter</family>
+            <pointsize>-1</pointsize>
+            <weight>62</weight>
+            <bold>true</bold>
+           </font>
+          </property>
+          <property name="title">
+           <string>UUT to OFV (RS422)</string>
+          </property>
+          <layout class="QGridLayout" name="gridLayout_4">
+           <item row="0" column="0">
+            <widget class="QLabel" name="label_51">
+             <property name="font">
+              <font>
+               <family>Inter</family>
+               <pointsize>-1</pointsize>
+               <weight>75</weight>
+               <bold>true</bold>
+              </font>
+             </property>
+             <property name="text">
+              <string>COMMANDED POSITION</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1">
+            <widget class="QLCDNumber" name="lcdNumber_comPos"/>
+           </item>
+           <item row="0" column="2">
+            <widget class="QLabel" name="label_52">
+             <property name="text">
+              <string>degrees</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item row="2" column="2">
+         <widget class="QGroupBox" name="groupBox_5">
+          <property name="font">
+           <font>
+            <family>Inter</family>
+            <pointsize>-1</pointsize>
+            <weight>62</weight>
+            <bold>true</bold>
+           </font>
+          </property>
+          <property name="title">
+           <string>ARINC Label 163</string>
+          </property>
+          <layout class="QGridLayout" name="gridLayout_3">
+           <item row="0" column="0">
+            <widget class="QLabel" name="label_29">
+             <property name="font">
+              <font>
+               <family>Inter</family>
+               <pointsize>-1</pointsize>
+               <weight>75</weight>
+               <bold>true</bold>
+              </font>
+             </property>
+             <property name="text">
+              <string>LANDING FIELD ELEVATION</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1">
+            <widget class="QLCDNumber" name="lcdNumber"/>
+           </item>
+           <item row="0" column="2">
+            <widget class="QLabel" name="label_30">
+             <property name="text">
+              <string>ft.</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item row="2" column="3">
+         <widget class="QGroupBox" name="groupBox_11">
           <property name="font">
            <font>
             <family>Inter</family>

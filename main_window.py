@@ -146,6 +146,10 @@ class MainWindow(QtWidgets.QMainWindow):
         # Выставляем значения uut in по умолчанию и отправляем arinc_handler чтобы тоже выставил
         self.slot_set_default_button()
 
+
+        self.ui.lcdNumber_pc.setDigitCount(8)
+        self.ui.lcdNumber_alt.setDigitCount(8)
+
         self.arinc_thread.start()
         self.sig_run_arinc_handler.emit()
         self.rs_thread.start()
@@ -313,7 +317,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.ui.true_airspeed.setText(self.default_uut_in_params['210'])
 
         self.ui.lineEdit_ofv_input.setText(f'{self.default_ofv_pos}')
-        self.ui.comboBox_ofv_state.setCurrentIndex(0)
+        self.ui.comboBox_ofv_state.setCurrentIndex(1) #Operational
         self.ui.comboBox_ofv_bite.setCurrentIndex(0)
 
         self.slot_change_fms()
@@ -417,7 +421,9 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             self.ui.lfes_stat_auto.setChecked(True)
 
-        match data['used_adirs_channel']:
+        val = data['used_adirs_channel']
+        chan = (val & 0x02) >> 1 | (val & 0x01) << 1
+        match chan:
             case 0:
                 self.ui.adirs_ch_no.setChecked(True)
             case 1:
@@ -434,13 +440,16 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
         used_mode = data['flight_modes']
+        used_mode = (used_mode & 0x01) << 2 | (used_mode & 0x02) | (used_mode & 0x04) >> 2
         modes = ['gr', 'to', 'ci', 'ce', 'cr', 'di', 'de', 'ab']
         for i, mode in enumerate(modes):
             widget: QRadioButton = getattr(self.ui, f'flight_modes_{mode}')
             if i == used_mode:
                 widget.setChecked(True)
 
-        match data['fms_selection']:
+        val = data['fms_selection']
+        fms_sel = (val & 0x02) >> 1 | (val & 0x01) << 1
+        match fms_sel:
             case 0:
                 self.ui.fms_sel_1eng.setChecked(True)
             case 1:

@@ -46,9 +46,13 @@ def _calculate_checksum(message: str) -> str:
     return checksum
 
 def _validate_checksum(message: bytes) -> bool:
-    received_checksum = int(message[-2:], 16)
-    calculated_checksum = int(_calculate_checksum(message[:-2].decode('ascii')), 16)
-    return received_checksum == calculated_checksum
+    try:
+        received_checksum = int(message[-2:], 16)
+        calculated_checksum = int(_calculate_checksum(message[:-2].decode('ascii')), 16)
+        return received_checksum == calculated_checksum
+    except Exception as e:
+        print(e)
+        return False
 
 PSI_HPA = 68.9475729318 # 1 psi = 68.9475729318 hPa
 
@@ -222,6 +226,10 @@ class RWHandler(QObject):
         while i < n:
             b0 = buf[i]
 
+            if b0 == 'Z'.encode('ascii'):
+                i += 1
+                continue
+
             length = MESSAGE_LENGTH.get(b0)
             if length is None:
                 i += 1
@@ -235,10 +243,10 @@ class RWHandler(QObject):
                 break
 
             packet = buf[i:i + length]
-            if packet != b'Z':
-                if _validate_checksum(packet):
-                    packets.append(packet)
-            else: packets.append(packet)
+
+            if _validate_checksum(packet):
+                packets.append(packet)
+
             i += length
 
         del buf[:i]
@@ -332,7 +340,7 @@ class RsWorker(QObject):
         self.handler = RWHandler()
 
         self.timer_poll = QTimer()
-        self.timer_poll.setInterval(1300)
+        self.timer_poll.setInterval(200)
         self.timer_poll.timeout.connect(self.on_timer_poll)
         self.handler.sig_timers_start.connect(self.timer_poll.start)
         self.is_polling = False
@@ -344,6 +352,9 @@ class RsWorker(QObject):
 
         self.flag_activity_rs_communication = False
 
+        self.pc_avg = []
+        self.alt_avg = []
+
     @pyqtSlot()
     def start(self):
         self.handler.start()
@@ -353,9 +364,23 @@ class RsWorker(QObject):
         if pc is None:
             return
         pc = (int(pc, 16) / 1024) * PSI_HPA
-        alt = self.handler.read_word(0xA01E)
-        alt = (int(alt, 16) / 4) * PSI_HPA
-        self.signal_pc_alt.emit((pc, alt))
+        self.pc_avg.append(pc)
+        if len(self.pc_avg) > 25:
+            self.pc_avg.pop(0)
+        pc_res = str(round(sum(self.pc_avg) / len(self.pc_avg), 2))
+
+        alt = int(self.handler.read_word(0xA01E), 16)
+        if alt < 32768:
+            alt = alt / 4
+        else:
+            alt = round(((65535 - alt) / -4), 2)
+
+        self.alt_avg.append(alt)
+        if len(self.alt_avg) > 25:
+            self.alt_avg.pop(0)
+        alt_res = str(round(sum(self.alt_avg) / len(self.alt_avg), 2))
+
+        self.signal_pc_alt.emit((pc_res, alt_res))
 
     def read_pn(self):
         pn = ''

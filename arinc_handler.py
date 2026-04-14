@@ -300,7 +300,7 @@ class ArincWorker(QObject):
         # Обработка ответа на команду version
         if self._waiting_for_version:
             line_str = line.decode('utf-8', errors='ignore').strip()
-            if line_str == 'ver.USB-BSCk0':
+            if line_str == 'ver.USB-BSCMk0':
                 self.sig_timer_connecting_stop.emit()
                 self._connected = True
                 self._waiting_for_version = False
@@ -425,7 +425,7 @@ class ArincWorker(QObject):
 
         @self.registry.label_handler('57')
         def label_57(self, word: int):
-            @lru_cache(maxsize=256)
+            #@lru_cache(maxsize=256)
             def _compute_dict(w: int) -> Dict[str, int]:
                 return {
                     'sdi': (word >> 8) & 0x03,

@@ -1,5 +1,5 @@
 {
-  "rs-422": "COM11",
-  "rs-232": "COM12",
-  "arinc-com": "COM3"
+  "rs-422": "COM37",
+  "rs-232": "COM40",
+  "arinc-com": "COM46"
 }

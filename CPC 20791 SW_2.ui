@@ -2728,7 +2728,7 @@ QDial::handle:hover {
              <item>
               <widget class="QLabel" name="label_91">
                <property name="text">
-                <string>hPa / min</string>
+                <string>SLFPM</string>
                </property>
               </widget>
              </item>

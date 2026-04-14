@@ -347,8 +347,7 @@ class RsWorker(QObject):
 
         self.raw_buffs = []
 
-        self.pn = None
-        self.sn = None
+        self.consts = None
 
         self.flag_activity_rs_communication = False
 
@@ -358,6 +357,11 @@ class RsWorker(QObject):
     @pyqtSlot()
     def start(self):
         self.handler.start()
+
+    def read_pc_alt_raw(self):
+        pc = self.handler.read_word(0xA004)
+        alt = self.handler.read_word(0xA01E)
+        return pc, alt
 
     def read_pc_alt(self):
         pc = self.handler.read_word(0xA004)
@@ -382,22 +386,33 @@ class RsWorker(QObject):
 
         self.signal_pc_alt.emit((pc_res, alt_res))
 
-    def read_pn(self):
-        pn = ''
+
+    def read_pn_hw(self):
+        hw = '0000-'
         for i in range(0, 8):
             dat = self.handler.read_byte(0xA065 + i)
             if dat is None: return
             dat = int(dat, 16).to_bytes(1, byteorder='big').decode('ascii')
-            pn += dat
+            hw += dat
+        return hw
 
+    def read_pn_sw(self):
+        sw = ''
         for i in range(0, 2):
             dat = self.handler.read_byte(0x1000 + i)
             if dat is None: return
             dat = int(dat, 16).to_bytes(1, byteorder='big').decode('ascii')
-            pn += dat
+            sw += dat
+        return sw
 
-        print(f'PN: {pn}')
-        return pn
+    def read_sw_ver(self):
+        sw_ver = ''
+        for i in range(0, 2):
+            dat = self.handler.read_byte(0x1010 + i)
+            if dat is None: return
+            dat = int(dat, 16).to_bytes(1, byteorder='big').decode('ascii')
+            sw_ver += dat
+        return sw_ver
 
     def read_sn(self):
         sn = ''
@@ -419,20 +434,27 @@ class RsWorker(QObject):
 
     @pyqtSlot()
     def slot_get_consts(self):
-        consts = {
-            'pc_offset_nvm' : (int(self.handler.read_word(0xA100), 16) / 2048) * PSI_HPA,
-            'pc_offset_nvm_checksum' : (int(self.handler.read_word(0xA102), 16) / 2048) * PSI_HPA,
-            'pc_check_offst' : (int(self.handler.read_word(0xA104), 16) / 2048) * PSI_HPA,
-            'drift_comp_cnt' : int((self.handler.read_word(0xA106) + self.handler.read_word(0xA108)), 16),
-            'pc_offset_fail_cnt' : int(self.handler.read_byte(0xA10A), 16),
-            'pn': self.read_pn(),
+        pc, alt_cab_rato = self.read_pc_alt_raw()
+        # 'pc_offset_nvm': int(self.handler.read_word(0xA100) / 2048) * PSI_HPA,
+        # 'pc_offset_nvm_checksum': (int(self.handler.read_word(0xA102), 16) / 2048) * PSI_HPA,
+        # 'pc_check_offst': (int(self.handler.read_word(0xA104), 16) / 2048) * PSI_HPA,
+        # 'drift_comp_cnt': int((self.handler.read_word(0xA106) + self.handler.read_word(0xA108)), 16),
+        # 'pc_offset_fail_cnt': int(self.handler.read_byte(0xA10A), 16),
+        self.consts = {
+            'pc_offset_nvm' : self.handler.read_word(0xA100),
+            'pc_offset_nvm_checksum' : self.handler.read_word(0xA102),
+            'pc_check_offst' : self.handler.read_word(0xA104),
+            'drift_comp_cnt_0' : self.handler.read_word(0xA106),
+            'drift_comp_cnt_1': self.handler.read_word(0xA108),
+            'pc_offset_fail_cnt' : self.handler.read_byte(0xA10A),
+            'pn_hw': self.read_pn_hw(),
+            'pn_sw': self.read_pn_sw(),
             'sn': self.read_sn(),
+            'sw_ver': self.read_sw_ver(),
+            'pc': pc,
+            'alt_cab_rato': alt_cab_rato,
         }
-
-        self.pn = consts['pn']
-        self.sn = consts['sn']
-
-        self.sig_send_consts.emit(consts)
+        self.sig_send_consts.emit(self.consts)
 
 
     @pyqtSlot(bool, int)
@@ -468,6 +490,7 @@ class RsWorker(QObject):
 
     @pyqtSlot()
     def read_fbuffs(self):
+        self.slot_get_consts()
         fbuffs = []
         progress: int = 0
         self.sig_progress_read_buffs.emit(progress)

@@ -2293,7 +2293,7 @@ class Ui_MainWindow(object):
         self.label_88.setText(_translate("MainWindow", "PRESSURE"))
         self.label_89.setText(_translate("MainWindow", "hPa"))
         self.label_90.setText(_translate("MainWindow", "ALT CAB RATO"))
-        self.label_91.setText(_translate("MainWindow", "hPa / min"))
+        self.label_91.setText(_translate("MainWindow", "SLFPM"))
         self.groupBox_6.setTitle(_translate("MainWindow", "UUT to OFV (RS422)"))
         self.label_51.setText(_translate("MainWindow", "COMMANDED POSITION"))
         self.label_52.setText(_translate("MainWindow", "degrees"))

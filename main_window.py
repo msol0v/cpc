@@ -407,6 +407,11 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             self.ui.LDG_GEAR_ESS_0.setChecked(True)
 
+        if disc_sig_dict['PASS_SIGN_WR']:
+            self.ui.PASS_SIGN_WR_1.setChecked(True)
+        else:
+            self.ui.PASS_SIGN_WR_0.setChecked(True)
+
     @pyqtSlot(dict)
     def slot_353_word(self, disc_sig_dict):
         self.parse_dict_to_radio(disc_sig_dict)

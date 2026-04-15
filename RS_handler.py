@@ -160,7 +160,7 @@ class RWHandler(QObject):
         self.timer_normal_message.setInterval(200)
 
         self.timer_request_commands = QTimer()
-        self.timer_request_commands.setInterval(3)
+        self.timer_request_commands.setInterval(13)
 
         self.timer_timeout = QTimer()
         self.timer_timeout.setSingleShot(True)
@@ -359,8 +359,10 @@ class RsWorker(QObject):
         self.handler.start()
 
     def read_pc_alt_raw(self):
-        pc = self.handler.read_word(0xA004)
-        alt = self.handler.read_word(0xA01E)
+        pc, alt = None, None
+        while pc is None or alt is None:
+            pc = self.handler.read_word(0xA004)
+            alt = self.handler.read_word(0xA01E)
         return pc, alt
 
     def read_pc_alt(self):
@@ -373,7 +375,10 @@ class RsWorker(QObject):
             self.pc_avg.pop(0)
         pc_res = str(round(sum(self.pc_avg) / len(self.pc_avg), 2))
 
-        alt = int(self.handler.read_word(0xA01E), 16)
+        alt = self.handler.read_word(0xA01E)
+        if alt is None:
+            return
+        alt = int(alt, 16)
         if alt < 32768:
             alt = alt / 4
         else:

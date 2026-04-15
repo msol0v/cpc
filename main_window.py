@@ -156,45 +156,56 @@ class MainWindow(QtWidgets.QMainWindow):
 
     @pyqtSlot()
     def slot_save(self):
-        if self.ui.progressBar.value() == 100:
-            try:
-                book = load_workbook(base_dir + '/base_xlsx/moduleCPC.xlsx')
-                wl = book.get_sheet_by_name('com')
-                for i, rbyte in enumerate(self.rs_handler.raw_buffs, 1):
-                    wl.cell(i,1,value=rbyte)
+        #if self.ui.progressBar.value() == 100:
+        try:
+            book = load_workbook(base_dir + '/base_xlsx/moduleCPC.xlsx')
+            wl = book['com']
+            for i, rbyte in enumerate(self.rs_handler.raw_buffs, 1):
+                wl.cell(i,1,value=rbyte)
 
-                for i, symb in enumerate(self.rs_handler.consts['sn']):
-                    wl.cell((i + 1313), 1, value=symb)
+            for i, symb in enumerate(self.rs_handler.consts['sn']):
+                wl.cell((i + 1313), 1, value=symb)
 
-                for i, symb in enumerate(self.rs_handler.consts['pn_hw']):
-                    wl.cell((i + 1320), 1, value=symb)
+            for i, symb in enumerate(self.rs_handler.consts['pn_hw']):
+                wl.cell((i + 1320), 1, value=symb)
 
 
-                for i, symb in enumerate(self.rs_handler.consts['pn_sw']):
-                    wl.cell((i + 1335), 1, value=f'{ord(symb):02X}')
+            for i, symb in enumerate(self.rs_handler.consts['pn_sw']):
+                wl.cell((i + 1335), 1, value=f'{ord(symb):02X}')
 
-                for i, symb in enumerate(self.rs_handler.consts['sw_ver']):
-                    wl.cell((i + 1333), 1, value=symb)
+            for i, symb in enumerate(self.rs_handler.consts['sw_ver']):
+                wl.cell((i + 1333), 1, value=symb)
 
-                wl.cell(1337, 1, value=self.rs_handler.consts['pc'])
-                wl.cell(1338, 1, value=self.rs_handler.consts['alt_cab_rato'])
-                wl.cell(1339, 1, value=self.rs_handler.consts['pc_offset_nvm'])
-                wl.cell(1340, 1, value=self.rs_handler.consts['pc_offset_nvm_checksum'])
-                wl.cell(1341, 1, value=self.rs_handler.consts['pc_check_offst'])
-                wl.cell(1342, 1, value=self.rs_handler.consts['drift_comp_cnt_0'])
-                wl.cell(1343, 1, value=self.rs_handler.consts['drift_comp_cnt_1'])
-                wl.cell(1344, 1, value=self.rs_handler.consts['pc_offset_fail_cnt'])
+            wl.cell(1337, 1, value=self.rs_handler.consts['pc'])
+            wl.cell(1338, 1, value=self.rs_handler.consts['alt_cab_rato'])
+            wl.cell(1339, 1, value=self.rs_handler.consts['pc_offset_nvm'])
+            wl.cell(1340, 1, value=self.rs_handler.consts['pc_offset_nvm_checksum'])
+            wl.cell(1341, 1, value=self.rs_handler.consts['pc_check_offst'])
+            wl.cell(1342, 1, value=self.rs_handler.consts['drift_comp_cnt_0'])
+            wl.cell(1343, 1, value=self.rs_handler.consts['drift_comp_cnt_1'])
+            wl.cell(1344, 1, value=self.rs_handler.consts['pc_offset_fail_cnt'])
 
-                dir = QFileDialog.getExistingDirectory(
-                    caption='Выберите директорию сохранения',
-                    directory='',
-                    options=QFileDialog.Option.ShowDirsOnly
-                )
-                book.save(f'{dir}/moduleCPC'
-                          f'_{self.rs_handler.consts['pn_hw']}{self.rs_handler.consts['pn_sw']}'
-                          f'_{self.rs_handler.consts['sn']}.xlsx')
-            except Exception as e:
-                self.slot_handler_error(f'{e}\nПопробуйте еще раз')
+            filename = (f'moduleCPC'
+                             f'_{self.rs_handler.consts['pn_hw']}'
+                             f'{self.rs_handler.consts['pn_sw']}'
+                             f'_{self.rs_handler.consts['sn']}.xlsx')
+
+            home = os.path.expanduser('~')
+            path, _ = QFileDialog.getSaveFileName(
+                self,
+                caption='Сохранение данных из nvSRAM',
+                directory=f'{home}/{filename}',
+                filter='Excel Files (*.xlsx);;All Files (*)',
+                initialFilter='Exel Files (*.xlsx)',
+                options=QFileDialog.Option.DontUseNativeDialog
+            )
+
+            if path:
+                book.save(path)
+            else:
+                return
+        except Exception as e:
+            self.slot_handler_error(f'{e}\nПопробуйте еще раз')
 
 
     @pyqtSlot()
@@ -516,7 +527,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     @pyqtSlot(str)
     def slot_handler_error(self, error:str):
-        QMessageBox.critical(self, "ARINC Handler Error", error)
+        QMessageBox.critical(self, "Error", error)
 
     @pyqtSlot(int)
     def slot_104_word(self, fault_bits: int):

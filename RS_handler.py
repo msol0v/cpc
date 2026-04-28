@@ -124,6 +124,8 @@ class RWTask():
         self.data = data
         self.timeout = timeout
         self.name = name
+        self.result = None
+        self.loop = None
 
 class RWHandler(QObject):
     sig_timers_start = pyqtSignal()
@@ -133,10 +135,17 @@ class RWHandler(QObject):
     sig_timeout_start = pyqtSignal(int)
     sig_normal_resp = pyqtSignal(tuple)
 
+    REPLY_BY_REQUEST = {
+        'K': 'T',
+        'L': 'U',
+        'M': 'V',
+        'N': 'W',
+    }
+
     def __init__(self):
         super(RWHandler, self).__init__()
 
-        self.port = QSerialPort()
+        self.port = QSerialPort(self)
 
         with open('ports.json', 'r', encoding='utf-8') as f:
             ports = json.load(f)
@@ -148,6 +157,7 @@ class RWHandler(QObject):
         self.received_data: object = None
 
         #For request commands
+        self.task_queue = Queue()
         self.current_task = None
         self.busy = False
         self.timeout_occurred = False
@@ -156,24 +166,18 @@ class RWHandler(QObject):
         self.normal_task: RWTask = None
 
         #Timers
-        self.timer_normal_message = QTimer()
+        self.timer_normal_message = QTimer(self)
         self.timer_normal_message.setInterval(200)
 
-        self.timer_request_commands = QTimer()
-        self.timer_request_commands.setInterval(3)
-
-        self.timer_timeout = QTimer()
+        self.timer_timeout = QTimer(self)
         self.timer_timeout.setSingleShot(True)
 
         # Connections
         self.port.readyRead.connect(self.ready_read)
         self.timer_normal_message.timeout.connect(self.slot_normal_op)
-        self.timer_request_commands.timeout.connect(self.slot_request_op)
         self.sig_timers_start.connect(self.timer_normal_message.start)
-        self.sig_timers_start.connect(self.timer_request_commands.start)
         self.sig_timeout_start.connect(self.timer_timeout.start)
         self.timer_timeout.timeout.connect(self.on_timeout)
-        self.sig_request.connect(self.request_to_buf)
 
 ### Protocol ###
     def decode_commanded_pos_from_uut(self, raw_data: bytearray):
@@ -187,12 +191,31 @@ class RWHandler(QObject):
         self.sig_normal_resp.emit((br, zc))
 
     def decode_rw_byte_reply(self, raw_data: str):
-        data = raw_data[1:3]
-        self.sig_request.emit(data)
+        return raw_data[1:3]
 
     def decode_rw_word_reply(self, raw_data: str):
-        data = f'{raw_data[3:5]}{raw_data[1:3]}'
-        self.sig_request.emit(data)
+        return f'{raw_data[3:5]}{raw_data[1:3]}'
+
+    def decode_rw_reply(self, packet_str: str):
+        if packet_str[0] in ('T', 'V'):
+            return self.decode_rw_byte_reply(packet_str)
+        return self.decode_rw_word_reply(packet_str)
+
+    def handle_rw_reply(self, packet_str: str):
+        if self.current_task is None:
+            print(f'Dropped unexpected RS reply without active task: {packet_str}')
+            return
+
+        reply_type = packet_str[0]
+        expected_reply_type = self.REPLY_BY_REQUEST.get(self.current_task.type)
+        if reply_type != expected_reply_type:
+            print(
+                f'Dropped RS reply {reply_type} while waiting for '
+                f'{expected_reply_type}: {packet_str}'
+            )
+            return
+
+        self._finish_current_task(self.decode_rw_reply(packet_str))
 
     def message_route(self, packets):
         for packet in packets:
@@ -200,15 +223,8 @@ class RWHandler(QObject):
             match (packet_str[0:1]):
                 case 'P':
                     self.decode_commanded_pos_from_uut(packet)  # Identifies this as COMMANDED Position
-                case 'T':
-                    self.decode_rw_byte_reply(packet_str)  # Identifies this as READ BYTE REPLY message
-                case 'U':
-                    self.decode_rw_word_reply(packet_str)  # Identifies this as READ WORD REPLY message
-                case 'V':
-                    self.decode_rw_byte_reply(packet_str)  # Identifies this as WRITE BYTE REPLY message
-                case 'W':
-                    print(packet_str)
-                    self.decode_rw_word_reply(packet_str)  # Identifies this as WRITE WORD REPLY message
+                case 'T' | 'U' | 'V' | 'W':
+                    self.handle_rw_reply(packet_str)
                 case 'Z':
                     print('Z')
 
@@ -227,7 +243,7 @@ class RWHandler(QObject):
         while i < n:
             b0 = buf[i]
 
-            if b0 == 'Z'.encode('ascii'):
+            if b0 == ord('Z'):
                 i += 1
                 continue
 
@@ -247,15 +263,12 @@ class RWHandler(QObject):
 
             if _validate_checksum(packet):
                 packets.append(packet)
-
-            i += length
+                i += length
+            else:
+                i += 1
 
         del buf[:i]
         self.message_route(packets)
-
-    @pyqtSlot(bytes)
-    def request_to_buf(self, data: object):
-        self.received_data = data
 
     def start(self):
         if not self.open():
@@ -276,51 +289,53 @@ class RWHandler(QObject):
 
     @pyqtSlot()
     def slot_normal_op(self):
-        if self.normal_task is None:
+        if self.normal_task is None or self.busy:
             return
         self.port.write(self.normal_task.data)
 
-    @pyqtSlot()
-    def slot_request_op(self):
-        if self.current_task is None or self.busy:
+    def _clear_input(self):
+        self.buffer.clear()
+        self.received_data = None
+        if self.port.isOpen():
+            input_direction = getattr(QSerialPort, 'Input', None)
+            if input_direction is None:
+                self.port.clear()
+            else:
+                self.port.clear(input_direction)
+
+    def _process_next_task(self):
+        if self.current_task is not None or self.task_queue.empty():
             return
 
+        self.current_task = self.task_queue.get()
         self.busy = True
+        self.timeout_occurred = False
+        self._clear_input()
+        self.timer_timeout.start(self.current_task.timeout)
         self.port.write(self.current_task.data)
+        self.port.flush()
+
+    def _finish_current_task(self, result):
+        task = self.current_task
+        if task is None:
+            return
+
+        self.timer_timeout.stop()
+        task.result = result
+        self.current_task = None
+        self.busy = False
+
+        if task.loop is not None and task.loop.isRunning():
+            task.loop.quit()
+
+        QTimer.singleShot(0, self._process_next_task)
 
     def _do_task(self, task: RWTask) -> object:
-        try:
-            self.buffer.clear()
-
-            loop = QEventLoop()
-            self.timer_timeout.timeout.connect(loop.quit)
-            self.sig_request.connect(loop.quit)
-
-            self.current_task = task
-
-            self.sig_timeout_start.emit(self.current_task.timeout)
-            loop.exec_()
-
-            self.sig_request.disconnect(loop.quit)
-            self.timer_timeout.stop()
-            self.timer_timeout.timeout.disconnect(loop.quit)
-
-            self.busy = False
-
-            if self.timeout_occurred:
-                self.timeout_occurred = False
-                print(f'Timeout occurred in task with command: {self.current_task.data}')
-                self.current_task = None
-                return None
-            else:
-                self.current_task = None
-                return self.received_data
-        except Exception as e:
-            print(e)
-            self.current_task = None
-            self.busy = False
-            return None
-
+        task.loop = QEventLoop()
+        self.task_queue.put(task)
+        self._process_next_task()
+        task.loop.exec_()
+        return task.result
 
     def read_byte(self, addr):
         command = make_read_byte_command(addr).encode('ascii')
@@ -332,17 +347,21 @@ class RWHandler(QObject):
 
     def write_byte(self, addr, data):
         command = make_write_byte_command(addr, data).encode('ascii')
-        return self._do_task(RWTask('M',addr, command, timeout=1000))
+        return self._do_task(RWTask('M', addr, command, timeout=1000))
 
     def write_word(self, addr, data):
         command = make_write_word_command(addr, data).encode('ascii')
-        print(command)
         return self._do_task(RWTask('N', addr, command, timeout=1000))
 
     @pyqtSlot()
     def on_timeout(self):
         """Обработчик таймаута"""
         self.timeout_occurred = True
+        if self.current_task is None:
+            return
+        print(f'Timeout occurred in task with command: {self.current_task.data}')
+        self._clear_input()
+        self._finish_current_task(None)
 
 
 class RsWorker(QObject):
@@ -353,20 +372,16 @@ class RsWorker(QObject):
     sig_progress_read_buffs = pyqtSignal(int)
     sig_error = pyqtSignal(str)
 
-    sig_start_polling = pyqtSignal()
-    sig_stop_polling = pyqtSignal()
-
     def __init__(self):
         super().__init__()
 
         self.handler = RWHandler()
+        self.handler.setParent(self)
 
-        self.timer_poll = QTimer()
+        self.timer_poll = QTimer(self)
         self.timer_poll.setInterval(200)
         self.timer_poll.timeout.connect(self.on_timer_poll)
         self.handler.sig_timers_start.connect(self.timer_poll.start)
-        self.sig_start_polling.connect(self.timer_poll.start)
-        self.sig_stop_polling.connect(self.timer_poll.stop)
         self.is_polling = False
 
         self.raw_buffs = []
@@ -386,7 +401,6 @@ class RsWorker(QObject):
         pc, alt = None, None
         while pc is None or alt is None:
             pc = self.handler.read_word(0xA004)
-            QThread.msleep(3)
             alt = self.handler.read_word(0xA01E)
         return pc, alt
 
@@ -464,59 +478,44 @@ class RsWorker(QObject):
 
     @pyqtSlot()
     def slot_get_consts(self):
-        self.sig_stop_polling.emit()
-        try:
-
-            # Иногда приходят одинаковые значения ??
-            retry = True
-            while retry:
-                pc, alt_cab_rato = self.read_pc_alt_raw()
-                if not pc == alt_cab_rato:
-                    retry = False
-            # 'pc_offset_nvm': int(self.handler.read_word(0xA100) / 2048) * PSI_HPA,
-            # 'pc_offset_nvm_checksum': (int(self.handler.read_word(0xA102), 16) / 2048) * PSI_HPA,
-            # 'pc_check_offst': (int(self.handler.read_word(0xA104), 16) / 2048) * PSI_HPA,
-            # 'drift_comp_cnt': int((self.handler.read_word(0xA106) + self.handler.read_word(0xA108)), 16),
-            # 'pc_offset_fail_cnt': int(self.handler.read_byte(0xA10A), 16),
-            self.consts = {
-                'pc_offset_nvm' : self.handler.read_word(0xA100),
-                'pc_offset_nvm_checksum' : self.handler.read_word(0xA102),
-                'pc_check_offst' : self.handler.read_word(0xA104),
-                'drift_comp_cnt_0' : self.handler.read_word(0xA106),
-                'drift_comp_cnt_1': self.handler.read_word(0xA108),
-                'pc_offset_fail_cnt' : self.handler.read_byte(0xA10A),
-                'pn_hw': self.read_pn_hw(),
-                'pn_sw': self.read_pn_sw(),
-                'sn': self.read_sn(),
-                'sw_ver': self.read_sw_ver(),
-                'pc': pc,
-                'alt_cab_rato': alt_cab_rato,
-            }
-        except Exception as e:
-            self.sig_error.emit(f'Error consts read\n\r{e}')
-        self.sig_start_polling.emit()
+        pc, alt_cab_rato = self.read_pc_alt_raw()
+        # 'pc_offset_nvm': int(self.handler.read_word(0xA100) / 2048) * PSI_HPA,
+        # 'pc_offset_nvm_checksum': (int(self.handler.read_word(0xA102), 16) / 2048) * PSI_HPA,
+        # 'pc_check_offst': (int(self.handler.read_word(0xA104), 16) / 2048) * PSI_HPA,
+        # 'drift_comp_cnt': int((self.handler.read_word(0xA106) + self.handler.read_word(0xA108)), 16),
+        # 'pc_offset_fail_cnt': int(self.handler.read_byte(0xA10A), 16),
+        self.consts = {
+            'pc_offset_nvm' : self.handler.read_word(0xA100),
+            'pc_offset_nvm_checksum' : self.handler.read_word(0xA102),
+            'pc_check_offst' : self.handler.read_word(0xA104),
+            'drift_comp_cnt_0' : self.handler.read_word(0xA106),
+            'drift_comp_cnt_1': self.handler.read_word(0xA108),
+            'pc_offset_fail_cnt' : self.handler.read_byte(0xA10A),
+            'pn_hw': self.read_pn_hw(),
+            'pn_sw': self.read_pn_sw(),
+            'sn': self.read_sn(),
+            'sw_ver': self.read_sw_ver(),
+            'pc': pc,
+            'alt_cab_rato': alt_cab_rato,
+        }
         self.sig_send_consts.emit(self.consts)
 
 
     @pyqtSlot(bool, int)
     def slot_read(self, state, addr):
-        self.sig_stop_polling.emit()
         if state:
             reply = self.handler.read_byte(addr)
         else:
             reply = self.handler.read_word(addr)
-        self.sig_start_polling.emit()
-        self.sig_rw_reply.emit(0, reply)
+        self.sig_rw_reply.emit(0, reply or '')
 
     @pyqtSlot(bool, int, int)
     def slot_write(self, state, addr, data):
-        self.sig_stop_polling.emit()
         if state:
             reply = self.handler.write_byte(addr, data)
         else:
             reply = self.handler.write_word(addr, data)
-        self.sig_rw_reply.emit(1, reply)
-        self.sig_start_polling.emit()
+        self.sig_rw_reply.emit(1, reply or '')
 
     @pyqtSlot(bool, bool, int)
     def slot_bite_change(self, state, bite_fault_flag, position):

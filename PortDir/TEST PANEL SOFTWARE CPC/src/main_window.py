@@ -208,7 +208,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def on_rButton_clicked(self):
         try:
             addr = int(self.ui.lineEdit_r_addr.text(), 16)
-            if 0 > addr > 0xFFFF:
+            if not 0 <= addr <= 0xFFFF:
                 print('Invalid address')
                 self.ui.lineEdit_r_addr.setText("")
                 return
@@ -225,13 +225,17 @@ class MainWindow(QtWidgets.QMainWindow):
         try:
             addr = int(self.ui.lineEdit_w_addr.text(), 16)
             data = int(self.ui.lineEdit_w_data.text(), 16)
-            if 0 > addr > 0xFFFF:
+            if not 0 <= addr <= 0xFFFF:
                 print('Invalid address')
+                return
+            state = self.ui.radioButton_w_0.isChecked()
+            max_data = 0xFF if state else 0xFFFF
+            if not 0 <= data <= max_data:
+                print('Invalid data')
                 return
         except ValueError:
             print('Invalid address')
             return
-        state = self.ui.radioButton_w_0.isChecked()
         self.sig_w_nvram.emit(state, addr, data)
 
     @pyqtSlot(int, str)

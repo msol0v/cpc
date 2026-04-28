@@ -230,8 +230,9 @@ class ArincWorker(QObject):
 
         # Таймер проверки активности шины
         self.activity_timer = QTimer()
-        self.activity_timer.setInterval(700)
-        self.activity_timer.timeout.connect(self._check_activity)
+        self.activity_timer.setInterval(1000)
+        self.activity_timer.setSingleShot(True)
+        self.activity_timer.timeout.connect(self._handle_bus_timeout)
 
         self.timer_connecting = QTimer()
         self.timer_connecting.setInterval(1000)
@@ -249,16 +250,12 @@ class ArincWorker(QObject):
         self.sig_start_activity_timer.connect(self.activity_timer.start)
 
     @pyqtSlot()
-    def _check_activity(self):
-        """Проверка активности шины"""
-        if time.time() - self._last_activity_time > 1.0:
-            # Нет активности более 1 секунды
-            self.sdac_activity = {'sdac_0':False, 'sdac_1':False}
-            self.sig_bus_activity.emit(self.sdac_activity)
-            self.stop()
-            self.sig_error.emit('Error: SDAC Bus empty more than 1 sec\n\rARINC Handler Stopped')
-        else:
-            self.sig_bus_activity.emit(self.sdac_activity)
+    def _handle_bus_timeout(self):
+        self.sdac_activity = {'sdac_0': False, 'sdac_1': False}
+        self.sig_bus_activity.emit(self.sdac_activity)
+
+        error_msg = 'Error: SDAC Bus activity timeout (no data > 1 sec)\n\r'
+        self.sig_error.emit(error_msg)
 
     @pyqtSlot()
     def slot_connecting_timeout(self):
@@ -306,12 +303,12 @@ class ArincWorker(QObject):
                 self._waiting_for_version = False
                 self.sig_connected.emit()
                 self._configure_fizz()  # Настраиваем преобразователь
-                QThread.msleep(300) #Ожидание, пока порты включатся
                 self.sig_start_activity_timer.emit()
             return
 
         # Обработка ARINC слов
         if line.startswith(b'dat'):
+            self.sig_start_activity_timer.emit()
             try:
                 # datNxxxxYYYY\n
 
@@ -324,6 +321,7 @@ class ArincWorker(QObject):
 
                 # Обновляем активность
                 self.sdac_activity[f'sdac_{chan}'] = True
+                self.sig_bus_activity.emit(self.sdac_activity)
 
                 # Вызываем нужный сигнал в зависимости от метки
                 self.call_word_handler(label_int, word_int)
@@ -491,7 +489,10 @@ class ArincWorker(QObject):
 
         @self.registry.label_handler('163')
         def label_163(self, word: int):
-            data = (word >> 13) & 0xFFF
+            #data = (word >> 13) & 0xFFF
+            data_raw = (word >> 10) & 0x7FFFF
+            sign_mask = 1 << 18
+            data = data_raw - (1 << 19) if data_raw & sign_mask else data_raw
             self.sig_163.emit(data)
 
         @self.registry.label_handler('104')

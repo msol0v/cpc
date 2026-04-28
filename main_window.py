@@ -3,7 +3,7 @@ faulthandler.enable()
 
 from PyQt5 import QtWidgets, QtCore
 from PyQt5.QtCore import QThread, pyqtSlot, pyqtSignal, QTimer
-from PyQt5.QtWidgets import QRadioButton, QDesktopWidget, QTableWidgetItem, QDialog, QVBoxLayout, QLabel, QMessageBox, QFileDialog
+from PyQt5.QtWidgets import QRadioButton, QComboBox, QTableWidgetItem, QDialog, QVBoxLayout, QLabel, QMessageBox, QFileDialog
 from PyQt5.QtGui import QColor, QBrush
 from _ui_main_window import Ui_MainWindow
 import os
@@ -15,6 +15,8 @@ from openpyxl import load_workbook
 import uut_encode
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
+
+PSI_HPA = 68.9475729318
 
 class MainWindow(QtWidgets.QMainWindow):
 
@@ -28,6 +30,10 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def __init__(self):
         super(MainWindow, self).__init__()
+        self.pc_offset_nvm_checksum = None
+        self.pc_check_offset = None
+        self.is_delta_edited = False
+        self.delta = None
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
 
@@ -65,6 +71,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Save button
         self.ui.saveButton.clicked.connect(self.slot_save)
+
+        self.ui.lineEdit_delta.textEdited.connect(self.on_lineEdit_delta_textEdited)
 
         # Faults Buffers
         self.ui.readFBuffersButton.clicked.connect(self.rs_handler.read_fbuffs)
@@ -320,6 +328,61 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.ui.tableWidget.viewport().update()
 
+    def lamps_shutdown(self):
+        """Выставляет все индикаторные RadioButtons в состояние False"""
+        # Группа из slot_352_word (Discrete signals)
+        widgets_352 = [
+            self.ui.FAULT_WARN_WR_1, self.ui.FAULT_WARN_WR_0,
+            self.ui.SYS_IN_CNTL_IN_1, self.ui.SYS_IN_CNTL_IN_0,
+            self.ui.ENG1_N2_1, self.ui.ENG1_N2_0,
+            self.ui.ENG2_N2_1, self.ui.ENG2_N2_0,
+            self.ui.LDG_GEAR_NORM_1, self.ui.LDG_GEAR_NORM_0,
+            self.ui.LDG_GEAR_ESS_1, self.ui.LDG_GEAR_ESS_0,
+            self.ui.PASS_SIGN_WR_1, self.ui.PASS_SIGN_WR_0
+        ]
+
+        # Группа из slot_057_word (System Status / ADIRS)
+        widgets_057 = [
+            self.ui.sys_in_ctrl_yes, self.ui.sys_in_ctrl_no,
+            self.ui.sys_status_fail, self.ui.sys_status_good,
+            self.ui.lfe_from_fms_nused, self.ui.lfe_from_fms_used,
+            self.ui.cabine_altitude_warn, self.ui.cabine_altitude_nwarn,
+            self.ui.diff_pressure_warn, self.ui.diff_pressure_nwarn,
+            self.ui.preplanned_toofast, self.ui.preplanned_good,
+            self.ui.lfes_stat_manual, self.ui.lfes_stat_auto,
+            self.ui.adirs_ch_no, self.ui.adirs_ch_1, self.ui.adirs_ch_2, self.ui.adirs_ch_3,
+            self.ui.fms_enable, self.ui.fms_disable,
+            self.ui.fms_sel_1eng, self.ui.fms_sel_1neng,
+            self.ui.fms_sel_2eng, self.ui.fms_sel_2neng,
+            self.ui.fms_use_nuse, self.ui.fms_use_use,
+            self.ui.qnh_nuse, self.ui.qnh_use,
+            self.ui.class2fault_pres, self.ui.class2fault_npres
+        ]
+
+        # Полетные режимы (Flight Modes) из slot_057_word
+        flight_modes = ['gr', 'to', 'ci', 'ce', 'cr', 'di', 'de', 'ab']
+        for mode in flight_modes:
+            widget = getattr(self.ui, f'flight_modes_{mode}', None)
+            if widget:
+                widget.setAutoExclusive(False)  # Временно отключаем эксклюзивность, чтобы снять выбор со всех
+                widget.setChecked(False)
+                widget.setAutoExclusive(True)
+
+        # Обработка всех списков
+        all_widgets = widgets_352 + widgets_057
+
+        for widget in all_widgets:
+            if widget:
+                # Отключаем авто-эксклюзивность, иначе в группе из 2-х кнопок одна всегда будет True
+                widget.setAutoExclusive(False)
+                widget.setChecked(False)
+                widget.setAutoExclusive(True)
+
+        #сброс LCD панелей
+        self.ui.lcdNumber.display(0)
+        self.ui.lcdNumber_pc.display(0)
+        self.ui.lcdNumber_alt.display(0)
+
     @pyqtSlot(int)
     def slot_show_progress_read_buffs(self, progr: int):
         self.ui.progressBar.setValue(progr)
@@ -331,17 +394,31 @@ class MainWindow(QtWidgets.QMainWindow):
             for j, (key, value) in enumerate(buffer.__dict__.items()):
                 self.ui.tableWidget_FBuffers.setItem(i, j, QTableWidgetItem(str(value)))
 
+    @pyqtSlot(int, int)
+    def number_sys_changed(self, row, index):
+        current_text = self.ui.tableWidget_consts.item(row,1).text()
+        if index:
+            new_text = f'{int(current_text):X}'
+        else:
+            new_text = f'{int(current_text, 16)}'
+        self.ui.tableWidget_consts.item(row,1).setText(new_text)
+
     @pyqtSlot(dict)
     def slot_bus_activity(self, active):
-        if active.get('sdac_0'):
+        sdac_1, sdac_2 = active.get('sdac_0'), active.get('sdac_1')
+
+        if sdac_1:
             self.ui.sdac_1.setChecked(True)
         else:
             self.ui.sdac_1.setChecked(False)
 
-        if active.get('sdac_1'):
+        if sdac_2:
             self.ui.sdac_2.setChecked(True)
         else:
             self.ui.sdac_2.setChecked(False)
+
+        if sdac_1 == False and sdac_2 == False:
+            self.lamps_shutdown()
 
 
     @pyqtSlot()
@@ -370,10 +447,86 @@ class MainWindow(QtWidgets.QMainWindow):
 
     @pyqtSlot(dict)
     def slot_show_consts(self, consts: dict):
-        self.ui.tableWidget_consts.setRowCount(len(consts))
+        drift_comp_cnt_part_1 = ''
+        self.ui.tableWidget_consts.setRowCount(len(consts)-1) # -1 because drift_comp_cnt in two parts
         for i, (key, value) in enumerate(consts.items()):
+            # 'pc_offset_nvm': int(self.handler.read_word(0xA100) / 2048) * PSI_HPA,
+            # 'pc_offset_nvm_checksum': (int(self.handler.read_word(0xA102), 16) / 2048) * PSI_HPA,
+            # 'pc_check_offst': (int(self.handler.read_word(0xA104), 16) / 2048) * PSI_HPA,
+            # 'drift_comp_cnt': int((self.handler.read_word(0xA106) + self.handler.read_word(0xA108)), 16),
+            # 'pc_offset_fail_cnt': int(self.handler.read_byte(0xA10A), 16),
+            match key:
+                case 'pc_offset_nvm':   value = round((int(value, 16) / 2048) * PSI_HPA, 2)
+                case 'pc_offset_nvm_checksum' :  value = round((int(value, 16) / 2048) * PSI_HPA, 2)
+                case 'pc_check_offst': value = round((int(value, 16) / 2048) * PSI_HPA, 2)
+                case 'pc_offset_fail_cnt': value = int(value, 16)
+                case 'pc': value = round((int(value, 16) / 1024) * PSI_HPA, 2)
+                case 'alt_cab_rato':
+                    value = int(value, 16)
+                    if value < 32768:
+                        value = value / 4
+                    else:
+                        value = round(((65535 - value) / -4), 2)
+                case 'drift_comp_cnt_0':
+                    drift_comp_cnt_part_1 = value
+                    continue
+                case 'drift_comp_cnt_1':
+                    key = 'drift_comp_cnt'
+                    value = int(f'{drift_comp_cnt_part_1}{value}', 16)
+
+            if i > 3: i -= 1
+
             self.ui.tableWidget_consts.setItem(i, 0, QTableWidgetItem(key))
             self.ui.tableWidget_consts.setItem(i, 1, QTableWidgetItem(str(value)))
+            # if not 'pn_hw' == key and not 'pn_sw' == key and not 'sw_ver' == key:
+            #     combo = QComboBox(parent=self.ui.tableWidget_FBuffers)
+            #     combo.addItems(["Dec", "Hex"])
+            #     combo.currentIndexChanged.connect(lambda index, r=i: self.number_sys_changed(r, index))
+            #     self.ui.tableWidget_consts.setCellWidget(i, 2, combo)
+
+        self.ui.tableWidget_consts.resizeRowsToContents()
+
+    def write_consts(self):
+        # 'pc_offset_nvm': int(self.handler.read_word(0xA100) / 2048) * PSI_HPA,
+        # 'pc_offset_nvm_checksum': (int(self.handler.read_word(0xA102), 16) / 2048) * PSI_HPA,
+        # 'pc_check_offst': (int(self.handler.read_word(0xA104), 16) / 2048) * PSI_HPA,
+        # 'drift_comp_cnt': int((self.handler.read_word(0xA106) + self.handler.read_word(0xA108)), 16),
+        # 'pc_offset_fail_cnt': int(self.handler.read_byte(0xA10A), 16),
+        pc_offset_nvm = int((self.delta / PSI_HPA) * 2048)
+        self.sig_w_nvram.emit(False, 0xA100, pc_offset_nvm)
+
+        pc_offset_nvm_checksum = -pc_offset_nvm
+        self.sig_w_nvram.emit(False, 0xA102, pc_offset_nvm_checksum)
+
+        pc_check_offst = pc_offset_nvm
+        self.sig_w_nvram.emit(False, 0xA104, pc_check_offst)
+
+    @pyqtSlot()
+    def on_lineEdit_delta_textEdited(self):
+        self.is_delta_edited = True
+
+    @pyqtSlot()
+    def on_button_write_delta_clicked(self):
+        if self.is_delta_edited:
+            try:
+                self.delta =  float(self.ui.lineEdit_delta.text())
+                self.pc_check_offset = self.delta
+                self.pc_offset_nvm_checksum = -self.delta
+                self.is_delta_edited = False
+            except Exception as e:
+                self.slot_handler_error(f'{e}')
+        else:
+            pc = float(self.ui.tableWidget_consts.item(9,1).text())
+            self.pc_offset_nvm_checksum = float(self.ui.tableWidget_consts.item(0, 1).text())
+            self.delta = abs(1020 - pc + self.pc_offset_nvm_checksum)
+            self.pc_check_offset = float(self.ui.tableWidget_consts.item(2,1).text())
+            self.ui.lineEdit_delta.setText(f'{self.delta}')
+        if self.delta > 12 or self.pc_check_offset > 12:
+            self.ui.lineEdit_control.setText(f'Необходима замена датчика давления')
+        else:
+            self.ui.lineEdit_control.setText(f'Delta записана')
+            self.write_consts()
+            self.ui.readConstsButton.clicked.emit()
 
     @pyqtSlot(tuple)
     def slot_show_commanded_pos(self, br_zc):

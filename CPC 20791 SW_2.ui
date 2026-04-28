@@ -681,7 +681,7 @@ QDial::handle:hover {
        </size>
       </property>
       <property name="currentIndex">
-       <number>0</number>
+       <number>3</number>
       </property>
       <widget class="QWidget" name="tabWidgetPage1">
        <attribute name="title">
@@ -3402,6 +3402,174 @@ QDial::handle:hover {
         <string>NVM Readout</string>
        </attribute>
        <layout class="QGridLayout" name="gridLayout_18">
+        <item row="0" column="1" rowspan="2">
+         <widget class="QGroupBox" name="groupBox_15">
+          <property name="maximumSize">
+           <size>
+            <width>400</width>
+            <height>16777215</height>
+           </size>
+          </property>
+          <property name="title">
+           <string>nvSRAM Write</string>
+          </property>
+          <layout class="QGridLayout" name="gridLayout_15">
+           <item row="0" column="0">
+            <layout class="QVBoxLayout" name="verticalLayout_30">
+             <item>
+              <widget class="QLabel" name="label_35">
+               <property name="text">
+                <string>Address</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLineEdit" name="lineEdit_w_addr"/>
+             </item>
+            </layout>
+           </item>
+           <item row="1" column="0">
+            <layout class="QVBoxLayout" name="verticalLayout_33">
+             <item>
+              <widget class="QLabel" name="label_37">
+               <property name="text">
+                <string>Data</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLineEdit" name="lineEdit_w_data"/>
+             </item>
+            </layout>
+           </item>
+           <item row="2" column="0">
+            <layout class="QHBoxLayout" name="horizontalLayout_4">
+             <item>
+              <widget class="QRadioButton" name="radioButton_w_0">
+               <property name="text">
+                <string>Byte</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+               <property name="checked">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QRadioButton" name="radioButton_w_1">
+               <property name="text">
+                <string>Word</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="wButton">
+               <property name="text">
+                <string>Write</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item row="3" column="0">
+            <layout class="QVBoxLayout" name="verticalLayout_32">
+             <item>
+              <widget class="QLabel" name="label_36">
+               <property name="text">
+                <string>Command reply</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLineEdit" name="lineEdit_w_reply"/>
+             </item>
+            </layout>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item row="0" column="0" rowspan="2">
+         <widget class="QGroupBox" name="groupBox_12">
+          <property name="maximumSize">
+           <size>
+            <width>400</width>
+            <height>16777215</height>
+           </size>
+          </property>
+          <property name="title">
+           <string>nvSRAM Read</string>
+          </property>
+          <layout class="QGridLayout" name="gridLayout_14">
+           <item row="0" column="0">
+            <layout class="QVBoxLayout" name="verticalLayout_21">
+             <item>
+              <widget class="QLabel" name="label_13">
+               <property name="text">
+                <string>Address</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLineEdit" name="lineEdit_r_addr"/>
+             </item>
+            </layout>
+           </item>
+           <item row="1" column="0">
+            <layout class="QHBoxLayout" name="horizontalLayout_3">
+             <item>
+              <widget class="QRadioButton" name="radioButton_r_0">
+               <property name="text">
+                <string>Byte</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+               <property name="checked">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QRadioButton" name="radioButton_r_1">
+               <property name="text">
+                <string>Word</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="rButton">
+               <property name="text">
+                <string>Read</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item row="2" column="0">
+            <layout class="QVBoxLayout" name="verticalLayout_20">
+             <item>
+              <widget class="QLabel" name="label_12">
+               <property name="text">
+                <string>Command reply</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLineEdit" name="lineEdit_r_reply"/>
+             </item>
+            </layout>
+           </item>
+          </layout>
+         </widget>
+        </item>
         <item row="2" column="0" colspan="4">
          <widget class="QGroupBox" name="groupBox_16">
           <property name="title">
@@ -3516,187 +3684,13 @@ QDial::handle:hover {
           </layout>
          </widget>
         </item>
-        <item row="0" column="1" rowspan="2">
-         <widget class="QGroupBox" name="groupBox_15">
-          <property name="maximumSize">
-           <size>
-            <width>400</width>
-            <height>16777215</height>
-           </size>
-          </property>
-          <property name="title">
-           <string>NVRAM Write</string>
-          </property>
-          <layout class="QGridLayout" name="gridLayout_15">
-           <item row="0" column="0">
-            <layout class="QVBoxLayout" name="verticalLayout_30">
-             <item>
-              <widget class="QLabel" name="label_35">
-               <property name="text">
-                <string>Address</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLineEdit" name="lineEdit_w_addr"/>
-             </item>
-            </layout>
-           </item>
-           <item row="1" column="0">
-            <layout class="QVBoxLayout" name="verticalLayout_33">
-             <item>
-              <widget class="QLabel" name="label_37">
-               <property name="text">
-                <string>Data</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLineEdit" name="lineEdit_w_data"/>
-             </item>
-            </layout>
-           </item>
-           <item row="2" column="0">
-            <layout class="QHBoxLayout" name="horizontalLayout_4">
-             <item>
-              <widget class="QRadioButton" name="radioButton_w_0">
-               <property name="text">
-                <string>Byte</string>
-               </property>
-               <property name="checkable">
-                <bool>true</bool>
-               </property>
-               <property name="checked">
-                <bool>true</bool>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QRadioButton" name="radioButton_w_1">
-               <property name="text">
-                <string>Word</string>
-               </property>
-               <property name="checkable">
-                <bool>true</bool>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QPushButton" name="wButton">
-               <property name="text">
-                <string>Write</string>
-               </property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-           <item row="3" column="0">
-            <layout class="QVBoxLayout" name="verticalLayout_32">
-             <item>
-              <widget class="QLabel" name="label_36">
-               <property name="text">
-                <string>Command reply</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLineEdit" name="lineEdit_w_reply"/>
-             </item>
-            </layout>
-           </item>
-          </layout>
-         </widget>
-        </item>
-        <item row="0" column="0" rowspan="2">
-         <widget class="QGroupBox" name="groupBox_12">
-          <property name="maximumSize">
-           <size>
-            <width>400</width>
-            <height>16777215</height>
-           </size>
-          </property>
-          <property name="title">
-           <string>NVRAM Read</string>
-          </property>
-          <layout class="QGridLayout" name="gridLayout_14">
-           <item row="0" column="0">
-            <layout class="QVBoxLayout" name="verticalLayout_21">
-             <item>
-              <widget class="QLabel" name="label_13">
-               <property name="text">
-                <string>Address</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLineEdit" name="lineEdit_r_addr"/>
-             </item>
-            </layout>
-           </item>
-           <item row="1" column="0">
-            <layout class="QHBoxLayout" name="horizontalLayout_3">
-             <item>
-              <widget class="QRadioButton" name="radioButton_r_0">
-               <property name="text">
-                <string>Byte</string>
-               </property>
-               <property name="checkable">
-                <bool>true</bool>
-               </property>
-               <property name="checked">
-                <bool>true</bool>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QRadioButton" name="radioButton_r_1">
-               <property name="text">
-                <string>Word</string>
-               </property>
-               <property name="checkable">
-                <bool>true</bool>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QPushButton" name="rButton">
-               <property name="text">
-                <string>Read</string>
-               </property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-           <item row="2" column="0">
-            <layout class="QVBoxLayout" name="verticalLayout_20">
-             <item>
-              <widget class="QLabel" name="label_12">
-               <property name="text">
-                <string>Command reply</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLineEdit" name="lineEdit_r_reply"/>
-             </item>
-            </layout>
-           </item>
-          </layout>
-         </widget>
-        </item>
-        <item row="0" column="2" rowspan="2">
+        <item row="0" column="2" rowspan="2" colspan="2">
          <widget class="QGroupBox" name="groupBox_14">
-          <property name="maximumSize">
-           <size>
-            <width>400</width>
-            <height>566</height>
-           </size>
-          </property>
           <property name="title">
            <string>Constants</string>
           </property>
           <layout class="QGridLayout" name="gridLayout_16">
-           <item row="0" column="0" rowspan="2">
+           <item row="0" column="0" rowspan="3">
             <widget class="QTableWidget" name="tableWidget_consts">
              <column>
               <property name="text">
@@ -3708,6 +3702,11 @@ QDial::handle:hover {
                <string>Value</string>
               </property>
              </column>
+             <column>
+              <property name="text">
+               <string>Number Sys</string>
+              </property>
+             </column>
             </widget>
            </item>
            <item row="0" column="1">
@@ -3717,7 +3716,73 @@ QDial::handle:hover {
              </property>
             </widget>
            </item>
-           <item row="1" column="1">
+           <item row="0" column="2">
+            <spacer name="horizontalSpacer">
+             <property name="orientation">
+              <enum>Qt::Horizontal</enum>
+             </property>
+             <property name="sizeType">
+              <enum>QSizePolicy::Preferred</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>50</width>
+               <height>20</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+           <item row="0" column="3" rowspan="2">
+            <layout class="QVBoxLayout" name="verticalLayout_35">
+             <item>
+              <widget class="QLabel" name="label_50">
+               <property name="text">
+                <string>Delta</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLineEdit" name="lineEdit_delta"/>
+             </item>
+             <item>
+              <widget class="QPushButton" name="button_write_delta">
+               <property name="minimumSize">
+                <size>
+                 <width>300</width>
+                 <height>0</height>
+                </size>
+               </property>
+               <property name="text">
+                <string>Write delta</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <spacer name="verticalSpacer_9">
+               <property name="orientation">
+                <enum>Qt::Vertical</enum>
+               </property>
+               <property name="sizeHint" stdset="0">
+                <size>
+                 <width>20</width>
+                 <height>18</height>
+                </size>
+               </property>
+              </spacer>
+             </item>
+             <item>
+              <widget class="QLabel" name="label_49">
+               <property name="text">
+                <string>Control</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLineEdit" name="lineEdit_control"/>
+             </item>
+            </layout>
+           </item>
+           <item row="1" column="1" rowspan="2">
             <spacer name="verticalSpacer_4">
              <property name="orientation">
               <enum>Qt::Vertical</enum>
@@ -3726,6 +3791,19 @@ QDial::handle:hover {
               <size>
                <width>20</width>
                <height>221</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+           <item row="2" column="3">
+            <spacer name="verticalSpacer_10">
+             <property name="orientation">
+              <enum>Qt::Vertical</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>20</width>
+               <height>138</height>
               </size>
              </property>
             </spacer>
@@ -3743,32 +3821,32 @@ QDial::handle:hover {
  <resources/>
  <connections/>
  <buttongroups>
-  <buttongroup name="buttonGroup_19"/>
-  <buttongroup name="buttonGroup_5"/>
-  <buttongroup name="buttonGroup_25"/>
-  <buttongroup name="buttonGroup_18"/>
+  <buttongroup name="buttonGroup_15"/>
+  <buttongroup name="buttonGroup_4"/>
   <buttongroup name="buttonGroup_26"/>
   <buttongroup name="buttonGroup_10"/>
-  <buttongroup name="buttonGroup_20"/>
-  <buttongroup name="buttonGroup_27"/>
-  <buttongroup name="buttonGroup_11"/>
-  <buttongroup name="buttonGroup_13"/>
-  <buttongroup name="buttonGroup_9"/>
   <buttongroup name="buttonGroup_7"/>
-  <buttongroup name="buttonGroup_21"/>
-  <buttongroup name="buttonGroup_12"/>
+  <buttongroup name="buttonGroup_5"/>
+  <buttongroup name="buttonGroup_27"/>
   <buttongroup name="buttonGroup"/>
-  <buttongroup name="buttonGroup_15"/>
-  <buttongroup name="buttonGroup_23"/>
-  <buttongroup name="buttonGroup_24"/>
-  <buttongroup name="buttonGroup_3"/>
-  <buttongroup name="buttonGroup_14"/>
+  <buttongroup name="buttonGroup_13"/>
   <buttongroup name="buttonGroup_16"/>
+  <buttongroup name="buttonGroup_23"/>
+  <buttongroup name="buttonGroup_20"/>
+  <buttongroup name="buttonGroup_11"/>
+  <buttongroup name="buttonGroup_14"/>
   <buttongroup name="buttonGroup_6"/>
-  <buttongroup name="buttonGroup_8"/>
-  <buttongroup name="buttonGroup_2"/>
   <buttongroup name="buttonGroup_17"/>
-  <buttongroup name="buttonGroup_4"/>
+  <buttongroup name="buttonGroup_21"/>
+  <buttongroup name="buttonGroup_19"/>
+  <buttongroup name="buttonGroup_9"/>
   <buttongroup name="buttonGroup_22"/>
+  <buttongroup name="buttonGroup_25"/>
+  <buttongroup name="buttonGroup_3"/>
+  <buttongroup name="buttonGroup_12"/>
+  <buttongroup name="buttonGroup_24"/>
+  <buttongroup name="buttonGroup_18"/>
+  <buttongroup name="buttonGroup_2"/>
+  <buttongroup name="buttonGroup_8"/>
  </buttongroups>
 </ui>

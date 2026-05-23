@@ -50,8 +50,7 @@ def _validate_checksum(message: bytes) -> bool:
         received_checksum = int(message[-2:], 16)
         calculated_checksum = int(_calculate_checksum(message[:-2].decode('ascii')), 16)
         return received_checksum == calculated_checksum
-    except Exception as e:
-        print(e)
+    except (UnicodeDecodeError, ValueError):
         return False
 
 PSI_HPA = 68.9475729318 # 1 psi = 68.9475729318 hPa
@@ -379,7 +378,7 @@ class RsWorker(QObject):
         self.handler.setParent(self)
 
         self.timer_poll = QTimer(self)
-        self.timer_poll.setInterval(200)
+        self.timer_poll.setInterval(33)
         self.timer_poll.timeout.connect(self.on_timer_poll)
         self.handler.sig_timers_start.connect(self.timer_poll.start)
         self.is_polling = False
@@ -433,37 +432,64 @@ class RsWorker(QObject):
 
     def read_pn_hw(self):
         hw = '0000-'
+        addr = 0xA065
         for i in range(0, 8):
-            dat = self.handler.read_byte(0xA065 + i)
+            dat = self.handler.read_byte(addr + i)
             if dat is None: return
-            dat = int(dat, 16).to_bytes(1, byteorder='big').decode('ascii')
+            try:
+                dat = int(dat, 16).to_bytes(1, byteorder='big').decode('ascii')
+            except UnicodeDecodeError:
+                self.sig_error.emit(f'Не удалось декодировать в ASCII\n\r'
+                                    f'read_pn_hw, addr: {addr + i:04X}, data: {dat}')
+                dat = '?'
+            if dat == '\r' or dat == '\n':
+                dat = '?'
             hw += dat
         return hw
 
     def read_pn_sw(self):
         sw = ''
+        addr = 0x1000
         for i in range(0, 2):
-            dat = self.handler.read_byte(0x1000 + i)
+            dat = self.handler.read_byte(addr + i)
             if dat is None: return
-            dat = int(dat, 16).to_bytes(1, byteorder='big').decode('ascii')
+            try:
+                dat = int(dat, 16).to_bytes(1, byteorder='big').decode('ascii')
+            except UnicodeDecodeError:
+                self.sig_error.emit(f'Не удалось декодировать в ASCII\n\r'
+                                    f'read_pn_hw, addr: {addr + i:04X}, data: {dat}')
+                dat = '0'
             sw += dat
         return sw
 
     def read_sw_ver(self):
         sw_ver = ''
+        addr = 0x1010
         for i in range(0, 2):
-            dat = self.handler.read_byte(0x1010 + i)
+            dat = self.handler.read_byte(addr + i)
             if dat is None: return
-            dat = int(dat, 16).to_bytes(1, byteorder='big').decode('ascii')
+            try:
+                dat = int(dat, 16).to_bytes(1, byteorder='big').decode('ascii')
+            except UnicodeDecodeError:
+                self.sig_error.emit(f'Не удалось декодировать в ASCII\n\r'
+                                    f'read_pn_hw, addr: {addr + i:04X}, data: {dat}')
+                dat = '?'
             sw_ver += dat
         return sw_ver
 
     def read_sn(self):
         sn = ''
+        addr = 0xA070
         for i in range(0, 7):
             dat = self.handler.read_byte(0xA070 + i)
             if dat is None: return
-            dat = int(dat, 16).to_bytes(1, byteorder='big').decode('ascii')
+            try:
+                dat = int(dat, 16).to_bytes(1, byteorder='big').decode('ascii')
+            except UnicodeDecodeError:
+                self.sig_error.emit(f'Не удалось декодировать в ASCII\n\r'
+                                    f'read_pn_hw, addr: {addr + i:04X}, data: {dat}')
+                dat = '?'
+
             sn += dat
         print(f'SN: {sn}')
         return sn
@@ -484,6 +510,7 @@ class RsWorker(QObject):
         # 'pc_check_offst': (int(self.handler.read_word(0xA104), 16) / 2048) * PSI_HPA,
         # 'drift_comp_cnt': int((self.handler.read_word(0xA106) + self.handler.read_word(0xA108)), 16),
         # 'pc_offset_fail_cnt': int(self.handler.read_byte(0xA10A), 16),
+
         self.consts = {
             'pc_offset_nvm' : self.handler.read_word(0xA100),
             'pc_offset_nvm_checksum' : self.handler.read_word(0xA102),

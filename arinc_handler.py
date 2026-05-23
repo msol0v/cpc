@@ -489,10 +489,10 @@ class ArincWorker(QObject):
 
         @self.registry.label_handler('163')
         def label_163(self, word: int):
-            #data = (word >> 13) & 0xFFF
             data_raw = (word >> 10) & 0x7FFFF
             sign_mask = 1 << 18
             data = data_raw - (1 << 19) if data_raw & sign_mask else data_raw
+            data = round(data / 8)
             self.sig_163.emit(data)
 
         @self.registry.label_handler('104')

@@ -1,4 +1,8 @@
 import faulthandler
+from time import sleep
+
+
+
 faulthandler.enable()
 
 from PyQt5 import QtWidgets, QtCore
@@ -18,6 +22,12 @@ base_dir = os.path.dirname(os.path.abspath(__file__))
 
 PSI_HPA = 68.9475729318
 
+def int16_from_hex(value: str) -> int:
+    x = int(value, 16) & 0xFFFF
+    if x & 0x8000:
+        x -= 0x10000
+    return x
+
 class MainWindow(QtWidgets.QMainWindow):
 
     sig_run_arinc_handler = pyqtSignal()
@@ -30,6 +40,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def __init__(self):
         super(MainWindow, self).__init__()
+        self.pc_offset_nvm = None
         self.pc_offset_nvm_checksum = None
         self.pc_check_offset = None
         self.is_delta_edited = False
@@ -54,8 +65,10 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Signals connection
         self.arinc_handler.sig_error.connect(self.slot_handler_error)
+        self.rs_handler.sig_error.connect(self.slot_handler_error)
         self.arinc_handler.sig_connected.connect(self.slot_arinc_handler_connected)
         self.sig_run_arinc_handler.connect(self.arinc_handler.slot_connect)
+
 
         self.ui.rButton.clicked.connect(self.on_rButton_clicked)
         self.sig_r_nvram.connect(self.rs_handler.slot_read)
@@ -164,56 +177,56 @@ class MainWindow(QtWidgets.QMainWindow):
 
     @pyqtSlot()
     def slot_save(self):
-        #if self.ui.progressBar.value() == 100:
-        try:
-            book = load_workbook(base_dir + '/base_xlsx/moduleCPC.xlsx')
-            wl = book['com']
-            for i, rbyte in enumerate(self.rs_handler.raw_buffs, 1):
-                wl.cell(i,1,value=rbyte)
+        if self.ui.progressBar.value() == 100:
+            try:
+                book = load_workbook(base_dir + '/base_xlsx/moduleCPC.xlsx')
+                wl = book['com']
+                for i, rbyte in enumerate(self.rs_handler.raw_buffs, 1):
+                    wl.cell(i,1,value=rbyte)
 
-            for i, symb in enumerate(self.rs_handler.consts['sn']):
-                wl.cell((i + 1313), 1, value=symb)
+                for i, symb in enumerate(self.rs_handler.consts['sn']):
+                    wl.cell((i + 1313), 1, value=symb)
 
-            for i, symb in enumerate(self.rs_handler.consts['pn_hw']):
-                wl.cell((i + 1320), 1, value=symb)
+                for i, symb in enumerate(self.rs_handler.consts['pn_hw']):
+                    wl.cell((i + 1320), 1, value=symb)
 
 
-            for i, symb in enumerate(self.rs_handler.consts['pn_sw']):
-                wl.cell((i + 1335), 1, value=f'{ord(symb):02X}')
+                for i, symb in enumerate(self.rs_handler.consts['pn_sw']):
+                    wl.cell((i + 1335), 1, value=f'{ord(symb):02X}')
 
-            for i, symb in enumerate(self.rs_handler.consts['sw_ver']):
-                wl.cell((i + 1333), 1, value=symb)
+                for i, symb in enumerate(self.rs_handler.consts['sw_ver']):
+                    wl.cell((i + 1333), 1, value=symb)
 
-            wl.cell(1337, 1, value=self.rs_handler.consts['pc'])
-            wl.cell(1338, 1, value=self.rs_handler.consts['alt_cab_rato'])
-            wl.cell(1339, 1, value=self.rs_handler.consts['pc_offset_nvm'])
-            wl.cell(1340, 1, value=self.rs_handler.consts['pc_offset_nvm_checksum'])
-            wl.cell(1341, 1, value=self.rs_handler.consts['pc_check_offst'])
-            wl.cell(1342, 1, value=self.rs_handler.consts['drift_comp_cnt_0'])
-            wl.cell(1343, 1, value=self.rs_handler.consts['drift_comp_cnt_1'])
-            wl.cell(1344, 1, value=self.rs_handler.consts['pc_offset_fail_cnt'])
+                wl.cell(1337, 1, value=self.rs_handler.consts['pc'])
+                wl.cell(1338, 1, value=self.rs_handler.consts['alt_cab_rato'])
+                wl.cell(1339, 1, value=self.rs_handler.consts['pc_offset_nvm'])
+                wl.cell(1340, 1, value=self.rs_handler.consts['pc_offset_nvm_checksum'])
+                wl.cell(1341, 1, value=self.rs_handler.consts['pc_check_offst'])
+                wl.cell(1342, 1, value=self.rs_handler.consts['drift_comp_cnt_0'])
+                wl.cell(1343, 1, value=self.rs_handler.consts['drift_comp_cnt_1'])
+                wl.cell(1344, 1, value=self.rs_handler.consts['pc_offset_fail_cnt'])
 
-            filename = (f'moduleCPC'
-                             f'_{self.rs_handler.consts['pn_hw']}'
-                             f'{self.rs_handler.consts['pn_sw']}'
-                             f'_{self.rs_handler.consts['sn']}.xlsx')
+                filename = (f'moduleCPC'
+                                 f'_{self.rs_handler.consts['pn_hw']}'
+                                 f'{self.rs_handler.consts['pn_sw']}'
+                                 f'_{self.rs_handler.consts['sn']}.xlsx')
 
-            home = os.path.expanduser('~')
-            path, _ = QFileDialog.getSaveFileName(
-                self,
-                caption='Сохранение данных из nvSRAM',
-                directory=f'{home}/{filename}',
-                filter='Excel Files (*.xlsx);;All Files (*)',
-                initialFilter='Exel Files (*.xlsx)',
-                options=QFileDialog.Option.DontUseNativeDialog
-            )
+                home = os.path.expanduser('~')
+                path, _ = QFileDialog.getSaveFileName(
+                    self,
+                    caption='Сохранение данных из nvSRAM',
+                    directory=f'{home}/{filename}',
+                    filter='Excel Files (*.xlsx);;All Files (*)',
+                    initialFilter='Exel Files (*.xlsx)',
+                    options=QFileDialog.Option.DontUseNativeDialog
+                )
 
-            if path:
-                book.save(path)
-            else:
-                return
-        except Exception as e:
-            self.slot_handler_error(f'{e}\nПопробуйте еще раз')
+                if path:
+                    book.save(path)
+                else:
+                    return
+            except Exception as e:
+                self.slot_handler_error(f'{e}\nПопробуйте еще раз')
 
 
     @pyqtSlot()
@@ -460,9 +473,9 @@ class MainWindow(QtWidgets.QMainWindow):
             # 'drift_comp_cnt': int((self.handler.read_word(0xA106) + self.handler.read_word(0xA108)), 16),
             # 'pc_offset_fail_cnt': int(self.handler.read_byte(0xA10A), 16),
             match key:
-                case 'pc_offset_nvm':   value = round((int(value, 16) / 2048) * PSI_HPA, 2)
-                case 'pc_offset_nvm_checksum' :  value = round((int(value, 16) / 2048) * PSI_HPA, 2)
-                case 'pc_check_offst': value = round((int(value, 16) / 2048) * PSI_HPA, 2)
+                case 'pc_offset_nvm':   value = round((int16_from_hex(value) / 2048) * PSI_HPA, 2)
+                case 'pc_offset_nvm_checksum' :  value = round((int16_from_hex(value) / 2048) * PSI_HPA, 2)
+                case 'pc_check_offst': value = round((int16_from_hex(value) / 2048) * PSI_HPA, 2)
                 case 'pc_offset_fail_cnt': value = int(value, 16)
                 case 'pc': value = round((int(value, 16) / 1024) * PSI_HPA, 2)
                 case 'alt_cab_rato':
@@ -482,28 +495,38 @@ class MainWindow(QtWidgets.QMainWindow):
 
             self.ui.tableWidget_consts.setItem(i, 0, QTableWidgetItem(key))
             self.ui.tableWidget_consts.setItem(i, 1, QTableWidgetItem(str(value)))
-            # if not 'pn_hw' == key and not 'pn_sw' == key and not 'sw_ver' == key:
-            #     combo = QComboBox(parent=self.ui.tableWidget_FBuffers)
-            #     combo.addItems(["Dec", "Hex"])
-            #     combo.currentIndexChanged.connect(lambda index, r=i: self.number_sys_changed(r, index))
-            #     self.ui.tableWidget_consts.setCellWidget(i, 2, combo)
 
         self.ui.tableWidget_consts.resizeRowsToContents()
 
-    def write_consts(self):
-        # 'pc_offset_nvm': int(self.handler.read_word(0xA100) / 2048) * PSI_HPA,
-        # 'pc_offset_nvm_checksum': (int(self.handler.read_word(0xA102), 16) / 2048) * PSI_HPA,
-        # 'pc_check_offst': (int(self.handler.read_word(0xA104), 16) / 2048) * PSI_HPA,
-        # 'drift_comp_cnt': int((self.handler.read_word(0xA106) + self.handler.read_word(0xA108)), 16),
-        # 'pc_offset_fail_cnt': int(self.handler.read_byte(0xA10A), 16),
+        # Считаем дельту, записываем константы в глабальные переменные класса
+        pc = float(self.ui.tableWidget_consts.item(9, 1).text())
+        self.pc_offset_nvm = float(self.ui.tableWidget_consts.item(0, 1).text())
+        self.pc_offset_nvm_checksum = float(self.ui.tableWidget_consts.item(1, 1).text())
+        self.pc_check_offset = float(self.ui.tableWidget_consts.item(2, 1).text())
+        self.delta = 1020 - pc + self.pc_offset_nvm
+        self.ui.lineEdit_delta.setText(f'{self.delta}') 
+
+    def try_write_consts(self):
         pc_offset_nvm = int((self.delta / PSI_HPA) * 2048)
         self.sig_w_nvram.emit(False, 0xA100, pc_offset_nvm)
 
         pc_offset_nvm_checksum = -pc_offset_nvm
         self.sig_w_nvram.emit(False, 0xA102, pc_offset_nvm_checksum)
 
-        pc_check_offst = pc_offset_nvm
-        self.sig_w_nvram.emit(False, 0xA104, pc_check_offst)
+        pc_check_offset = pc_offset_nvm
+        self.sig_w_nvram.emit(False, 0xA104, pc_check_offset)
+
+    def write_consts(self):
+        self.ui.tableWidget_consts.setItem(0, 1, QTableWidgetItem(str(0.0)))
+        timeout_cnt = 0
+        while timeout_cnt != 10:
+            self.try_write_consts()
+            sleep(0.05)
+            pc = float(self.ui.tableWidget_consts.item(0, 1).text())
+            if not pc > 0:
+                timeout_cnt += 1
+            else:
+                break
 
     @pyqtSlot()
     def on_lineEdit_delta_textEdited(self):
@@ -511,25 +534,11 @@ class MainWindow(QtWidgets.QMainWindow):
 
     @pyqtSlot()
     def on_button_write_delta_clicked(self):
-        if self.is_delta_edited:
-            try:
-                self.delta =  float(self.ui.lineEdit_delta.text())
-                self.pc_check_offset = self.delta
-                self.pc_offset_nvm_checksum = -self.delta
-                self.is_delta_edited = False
-            except Exception as e:
-                self.slot_handler_error(f'{e}')
-        else:
-            pc = float(self.ui.tableWidget_consts.item(9,1).text())
-            self.pc_offset_nvm_checksum = float(self.ui.tableWidget_consts.item(0, 1).text())
-            self.delta = abs(1020 - pc + self.pc_offset_nvm_checksum)
-            self.pc_check_offset = float(self.ui.tableWidget_consts.item(2,1).text())
-            self.ui.lineEdit_delta.setText(f'{self.delta}')
-        if self.delta > 12 or self.pc_check_offset > 12:
+        if abs(self.delta) > 12 or abs(self.pc_check_offset) > 12:
             self.ui.lineEdit_control.setText(f'Необходима замена датчика давления')
         else:
-            self.ui.lineEdit_control.setText(f'Delta записана')
             self.write_consts()
+            self.ui.lineEdit_control.setText(f'Delta записана')
             self.ui.readConstsButton.clicked.emit()
 
     @pyqtSlot(tuple)

@@ -37,6 +37,11 @@ def encode_351() -> str:
 
 def encode_256(lfe: int) -> str:
     label: str = __label_encode(0o256)
-    sign = int(lfe < 0)
-    word_payload: int = (0b11 << 29) | (sign << 28) | (lfe << 14) | (0b01 << 8)
+    raw = (lfe * 16) & 0x7FFFF
+    word_payload = (
+            (0b11 << 29) |  # SSM normal
+            (raw << 10) |
+            (0b01 << 8)
+    )
+
     return f'{word_payload >> 8:06X}{label}'

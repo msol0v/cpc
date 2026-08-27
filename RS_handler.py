@@ -1,13 +1,10 @@
-from time import sleep
+from datetime import datetime
 
-from PyQt5.QtCore import QObject, pyqtSignal, QTimer, QTime, pyqtSlot, QIODevice, QThread, QByteArray, QEventLoop
-from PyQt5.QtWidgets import QRadioButton
-import serial
+from PyQt5.QtCore import QObject, pyqtSignal, QTimer, pyqtSlot, QIODevice, QEventLoop, Qt
 import json
 from queue import Queue
 
 from PyQt5.QtSerialPort import QSerialPort
-from PyQt5.QtWidgets import QAbstractButton
 
 
 #################################  Utils  #######################################################
@@ -166,6 +163,7 @@ class RWHandler(QObject):
 
         #Timers
         self.timer_normal_message = QTimer(self)
+        self.timer_normal_message.setTimerType(Qt.PreciseTimer)
         self.timer_normal_message.setInterval(200)
 
         self.timer_timeout = QTimer(self)
@@ -291,6 +289,10 @@ class RWHandler(QObject):
         if self.normal_task is None or self.busy:
             return
         self.port.write(self.normal_task.data)
+
+        now = datetime.now()
+        current_time = now.strftime("%H:%M:%S.%f")
+        print(f'{current_time}: [{self.normal_task.data}]')
 
     def _clear_input(self):
         self.buffer.clear()

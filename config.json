@@ -1,10 +1,12 @@
  {
   "statistic": false,
   "rs-port": "rs-422",
+
+
   "ports":
           {
-            "rs-422": "COM37",
-            "rs-232": "COM40",
+            "rs-422": "COM21",
+            "rs-232": "COM22",
             "arinc": "COM46"
           }
 }

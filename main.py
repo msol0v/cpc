@@ -1,6 +1,11 @@
 import sys
 from PyQt5 import QtWidgets
 from main_window import MainWindow
+import os
+import psutil
+
+process = psutil.Process(os.getpid())
+process.nice(psutil.HIGH_PRIORITY_CLASS)
 
 def main():
     app = QtWidgets.QApplication(sys.argv)

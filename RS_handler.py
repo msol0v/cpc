@@ -286,7 +286,7 @@ class RWHandler(QObject):
 
     @pyqtSlot()
     def slot_normal_op(self):
-        if self.normal_task is None or self.busy:
+        if self.normal_task is None:
             return
         self.port.write(self.normal_task.data)
 

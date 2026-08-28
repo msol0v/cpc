@@ -452,7 +452,7 @@ class RsWorker(QObject):
         hw = '0000-'
         addr = 0xA065
         for i in range(0, 8):
-            dat = self.handler.read_byte(addr + i)
+            dat = self.handler.read_byte(addr + i, priority=30)
             if dat is None: return
             try:
                 dat = int(dat, 16).to_bytes(1, byteorder='big').decode('ascii')
@@ -469,7 +469,7 @@ class RsWorker(QObject):
         sw = ''
         addr = 0x1000
         for i in range(0, 2):
-            dat = self.handler.read_byte(addr + i)
+            dat = self.handler.read_byte(addr + i, priority=30)
             if dat is None: return
             try:
                 dat = int(dat, 16).to_bytes(1, byteorder='big').decode('ascii')
@@ -484,7 +484,7 @@ class RsWorker(QObject):
         sw_ver = ''
         addr = 0x1010
         for i in range(0, 2):
-            dat = self.handler.read_byte(addr + i)
+            dat = self.handler.read_byte(addr + i, priority=30)
             if dat is None: return
             try:
                 dat = int(dat, 16).to_bytes(1, byteorder='big').decode('ascii')
@@ -499,7 +499,7 @@ class RsWorker(QObject):
         sn = ''
         addr = 0xA070
         for i in range(0, 7):
-            dat = self.handler.read_byte(0xA070 + i)
+            dat = self.handler.read_byte(0xA070 + i, priority=30)
             if dat is None: return
             try:
                 dat = int(dat, 16).to_bytes(1, byteorder='big').decode('ascii')
@@ -530,12 +530,12 @@ class RsWorker(QObject):
         # 'pc_offset_fail_cnt': int(self.handler.read_byte(0xA10A), 16),
 
         self.consts = {
-            'pc_offset_nvm' : self.handler.read_word(0xA100),
-            'pc_offset_nvm_checksum' : self.handler.read_word(0xA102),
-            'pc_check_offst' : self.handler.read_word(0xA104),
-            'drift_comp_cnt_0' : self.handler.read_word(0xA106),
-            'drift_comp_cnt_1': self.handler.read_word(0xA108),
-            'pc_offset_fail_cnt' : self.handler.read_byte(0xA10A),
+            'pc_offset_nvm' : self.handler.read_word(0xA100, priority=30),
+            'pc_offset_nvm_checksum' : self.handler.read_word(0xA102, priority=30),
+            'pc_check_offst' : self.handler.read_word(0xA104, priority=30),
+            'drift_comp_cnt_0' : self.handler.read_word(0xA106, priority=30),
+            'drift_comp_cnt_1': self.handler.read_word(0xA108, priority=30),
+            'pc_offset_fail_cnt' : self.handler.read_byte(0xA10A, priority=30),
             'pn_hw': self.read_pn_hw(),
             'pn_sw': self.read_pn_sw(),
             'sn': self.read_sn(),
@@ -571,11 +571,8 @@ class RsWorker(QObject):
 
     @pyqtSlot()
     def on_timer_poll(self):
-        if self.handler.busy or self.is_polling:
-            return
-        self.is_polling = True
+        # Всегда пытаемся читать PC/ALT, независимо от состояния буферов ошибок
         self.read_pc_alt()
-        self.is_polling = False
 
     @pyqtSlot()
     def test(self):
@@ -599,7 +596,8 @@ class RsWorker(QObject):
         addr = base + self._fb_current_n * 0x29
 
         try:
-            dat = self.handler.read_byte(addr, priority=50)
+            # Читаем буферы с низким приоритетом (30), чтобы PC/ALT (приоритет 10) проходил в очередь
+            dat = self.handler.read_byte(addr, priority=30)
         except Exception as e:
             self._fb_in_progress = False
             self.sig_error.emit(f'Error while reading fault buffers at addr {addr:04X}: {e}')
@@ -645,13 +643,10 @@ class RsWorker(QObject):
         if self._fb_in_progress:
             return
 
-        try:
-            # read constants first (keeps original behaviour)
-            self.slot_get_consts()
-        except Exception as e:
-            self.sig_error.emit(f'Error getting consts before fbuffs: {e}')
-            return
-
+        # Не вызываем slot_get_consts перед чтением буферов,
+        # вместо этого запускаем её асинхронно с низким приоритетом
+        QTimer.singleShot(100, self.slot_get_consts)
+        
         # initialize state
         self._fb_in_progress = True
         self._fb_current_n = 0

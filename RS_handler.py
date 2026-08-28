@@ -2,7 +2,7 @@ from datetime import datetime
 
 from PyQt5.QtCore import QObject, pyqtSignal, QTimer, pyqtSlot, QIODevice, QEventLoop, Qt
 import json
-from queue import Queue
+from queue import PriorityQueue
 
 from PyQt5.QtSerialPort import QSerialPort
 
@@ -103,8 +103,8 @@ def _encode_ofv_status_packet(motor_state: bool, flag_bite_error_state: bool, po
     else:
         bite = '00000000'
 
-    # The conversion from encoded sensed position into degrees is: “convert hexadecimal number into decimal number and divide the decimal
-    # number by 256 decimal”
+    # The conversion from encoded sensed position into degrees is: "convert hexadecimal number into decimal number and divide the decimal
+    # number by 256 decimal"
     position = (position & 0xFFFF) * 256
     sended_position = f'{position & 0xFF:02X}{(position >> 8) & 0xFF:02X}'
     packet_raw = f'{id}{state}{bite}{sended_position}'
@@ -114,7 +114,9 @@ def _encode_ofv_status_packet(motor_state: bool, flag_bite_error_state: bool, po
 ############################################################################################################
 
 class RWTask():
-    def __init__(self, type: str, addr: int = 0, data: bytes = 0, timeout: int = 10, name: str = ''):
+    _counter = 0  # Счётчик для сохранения порядка задач с одинаковым приоритетом
+    
+    def __init__(self, type: str, addr: int = 0, data: bytes = 0, timeout: int = 10, name: str = '', priority: int = 50):
         self.type = type
         self.addr = addr
         self.data = data
@@ -122,6 +124,9 @@ class RWTask():
         self.name = name
         self.result = None
         self.loop = None
+        self.priority = priority  # Нижнее число = выше приоритет
+        RWTask._counter += 1
+        self.order = RWTask._counter  # Для сохранения порядка FIFO при одинаковом приоритете
 
 class RWHandler(QObject):
     sig_timers_start = pyqtSignal()
@@ -152,8 +157,8 @@ class RWHandler(QObject):
         self.buffer = bytearray()
         self.received_data: object = None
 
-        #For request commands
-        self.task_queue = Queue()
+        # Используем PriorityQueue вместо Queue
+        self.task_queue = PriorityQueue()
         self.current_task = None
         self.busy = False
         self.timeout_occurred = False
@@ -308,7 +313,9 @@ class RWHandler(QObject):
         if self.current_task is not None or self.task_queue.empty():
             return
 
-        self.current_task = self.task_queue.get()
+        # Извлекаем задачу с наивысшим приоритетом (lowest priority number)
+        priority, order, task = self.task_queue.get()
+        self.current_task = task
         self.busy = True
         self.timeout_occurred = False
         self._clear_input()
@@ -333,18 +340,18 @@ class RWHandler(QObject):
 
     def _do_task(self, task: RWTask) -> object:
         task.loop = QEventLoop()
-        self.task_queue.put(task)
+        self.task_queue.put((task.priority, task.order, task))
         self._process_next_task()
         task.loop.exec_()
         return task.result
 
-    def read_byte(self, addr):
+    def read_byte(self, addr, priority: int = 50):
         command = make_read_byte_command(addr).encode('ascii')
-        return self._do_task(RWTask('K', addr, command, timeout=1000))
+        return self._do_task(RWTask('K', addr, command, timeout=1000, priority=priority))
 
-    def read_word(self, addr):
+    def read_word(self, addr, priority: int = 50):
         command = make_read_word_command(addr).encode('ascii')
-        return self._do_task(RWTask('L', addr, command, timeout=1000))
+        return self._do_task(RWTask('L', addr, command, timeout=1000, priority=priority))
 
     def write_byte(self, addr, data):
         command = make_write_byte_command(addr, data).encode('ascii')
@@ -410,12 +417,12 @@ class RsWorker(QObject):
     def read_pc_alt_raw(self):
         pc, alt = None, None
         while pc is None or alt is None:
-            pc = self.handler.read_word(0xA004)
-            alt = self.handler.read_word(0xA01E)
+            pc = self.handler.read_word(0xA004, priority=10)
+            alt = self.handler.read_word(0xA01E, priority=10)
         return pc, alt
 
     def read_pc_alt(self):
-        pc = self.handler.read_word(0xA004)
+        pc = self.handler.read_word(0xA004, priority=10)
         if pc is None:
             return
         pc = (int(pc, 16) / 1024) * PSI_HPA
@@ -424,7 +431,7 @@ class RsWorker(QObject):
             self.pc_avg.pop(0)
         pc_res = str(round(sum(self.pc_avg) / len(self.pc_avg), 2))
 
-        alt = self.handler.read_word(0xA01E)
+        alt = self.handler.read_word(0xA01E, priority=10)
         if alt is None:
             return
         alt = int(alt, 16)
@@ -505,11 +512,11 @@ class RsWorker(QObject):
         print(f'SN: {sn}')
         return sn
 
-    def read_fault_buffer(self, n: int) -> list[str]:
+    def read_fault_buffer(self, n: int, priority: int = 50) -> list[str]:
         buffer = []
         for base in range(0xB001, 0xB02A):
             addr = base + n * 0x29
-            data_byte = self.handler.read_byte(addr)
+            data_byte = self.handler.read_byte(addr, priority=priority)
             buffer.append(data_byte)
         return buffer
 
@@ -592,7 +599,7 @@ class RsWorker(QObject):
         addr = base + self._fb_current_n * 0x29
 
         try:
-            dat = self.handler.read_byte(addr)
+            dat = self.handler.read_byte(addr, priority=50)
         except Exception as e:
             self._fb_in_progress = False
             self.sig_error.emit(f'Error while reading fault buffers at addr {addr:04X}: {e}')
@@ -657,6 +664,3 @@ class RsWorker(QObject):
 
         # kick off the async stepping
         QTimer.singleShot(0, self._fb_step)
-
-
-

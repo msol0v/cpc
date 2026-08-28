@@ -394,6 +394,15 @@ class RsWorker(QObject):
         self.pc_avg = []
         self.alt_avg = []
 
+        # Fault-buffers async read state
+        self._fb_in_progress = False
+        self._fb_total = 32
+        self._fb_current_n = 0
+        self._fb_current_byte_index = 0
+        self._fb_current_raw = []
+        self._fb_fbuffs_accumulated = []
+        self._fb_progress = 0
+
     @pyqtSlot()
     def start(self):
         self.handler.start()
@@ -565,23 +574,89 @@ class RsWorker(QObject):
     def test(self):
         pass
 
+    def _fb_step(self):
+        # internal step for asynchronous reading of fault buffers
+        if not self._fb_in_progress:
+            return
+
+        # If all buffers read -> finish
+        if self._fb_current_n >= self._fb_total:
+            self._fb_in_progress = False
+            # ensure progress completion
+            self.sig_progress_read_buffs.emit(100)
+            self.sig_show_fbuffs.emit(self._fb_fbuffs_accumulated)
+            return
+
+        # compute address for current byte
+        base = 0xB001 + self._fb_current_byte_index
+        addr = base + self._fb_current_n * 0x29
+
+        try:
+            dat = self.handler.read_byte(addr)
+        except Exception as e:
+            self._fb_in_progress = False
+            self.sig_error.emit(f'Error while reading fault buffers at addr {addr:04X}: {e}')
+            return
+
+        # if device timed out or returned None -> abort
+        if dat is None:
+            self._fb_in_progress = False
+            self.sig_error.emit(f'Failed to read fault buffer byte at addr {addr:04X}')
+            return
+
+        self._fb_current_raw.append(dat)
+
+        self._fb_current_byte_index += 1
+
+        # if we finished current buffer (41 bytes)
+        if self._fb_current_byte_index >= 0x29:  # 41
+            try:
+                fb = FaultsBuffer(self._fb_current_raw)
+            except Exception as e:
+                self._fb_in_progress = False
+                self.sig_error.emit(f'Error parsing fault buffer #{self._fb_current_n}: {e}')
+                return
+
+            self._fb_fbuffs_accumulated.append(fb)
+            self.raw_buffs.extend(self._fb_current_raw)
+
+            # progress similar to previous behaviour: +3 per buffer
+            self._fb_progress += 3
+            self.sig_progress_read_buffs.emit(self._fb_progress)
+
+            # prepare for next buffer
+            self._fb_current_n += 1
+            self._fb_current_byte_index = 0
+            self._fb_current_raw = []
+
+        # schedule next step to give Qt loop a chance to process other events
+        QTimer.singleShot(0, self._fb_step)
+
     @pyqtSlot()
     def read_fbuffs(self):
+        # Start asynchronous read of fault buffers. If already running, ignore.
+        if self._fb_in_progress:
+            return
+
         try:
+            # read constants first (keeps original behaviour)
             self.slot_get_consts()
-            fbuffs = []
-            progress: int = 0
-            self.sig_progress_read_buffs.emit(progress)
-            for n in range(0, 32):
-                raw = self.read_fault_buffer(n)
-                self.raw_buffs.extend(raw)
-                fbuffs.append(FaultsBuffer(raw))
-                progress += 3
-                self.sig_progress_read_buffs.emit(progress)
-            self.sig_progress_read_buffs.emit(100)
-            self.sig_show_fbuffs.emit(fbuffs)
         except Exception as e:
-            self.sig_error.emit(f'Error read fbuffs: {e}')
+            self.sig_error.emit(f'Error getting consts before fbuffs: {e}')
+            return
+
+        # initialize state
+        self._fb_in_progress = True
+        self._fb_current_n = 0
+        self._fb_current_byte_index = 0
+        self._fb_current_raw = []
+        self._fb_fbuffs_accumulated = []
+        self._fb_progress = 0
+
+        self.sig_progress_read_buffs.emit(0)
+
+        # kick off the async stepping
+        QTimer.singleShot(0, self._fb_step)
 
 
 

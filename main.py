@@ -5,7 +5,8 @@ import os
 import psutil
 
 process = psutil.Process(os.getpid())
-process.nice(psutil.HIGH_PRIORITY_CLASS)
+if os.name == 'nt':
+    process.nice(psutil.HIGH_PRIORITY_CLASS)
 
 def main():
     app = QtWidgets.QApplication(sys.argv)

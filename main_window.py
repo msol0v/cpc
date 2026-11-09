@@ -207,9 +207,9 @@ class MainWindow(QtWidgets.QMainWindow):
                 wl.cell(1344, 1, value=self.rs_handler.consts['pc_offset_fail_cnt'])
 
                 filename = (f'moduleCPC'
-                                 f'_{self.rs_handler.consts['pn_hw']}'
-                                 f'{self.rs_handler.consts['pn_sw']}'
-                                 f'_{self.rs_handler.consts['sn']}.xlsx')
+                                 f"_{self.rs_handler.consts['pn_hw']}"
+                                 f"{self.rs_handler.consts['pn_sw']}"
+                                 f"_{self.rs_handler.consts['sn']}.xlsx")
 
                 home = os.path.expanduser('~')
                 path, _ = QFileDialog.getSaveFileName(

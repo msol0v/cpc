@@ -9,7 +9,7 @@ from PyQt5.QtSerialPort import QSerialPort
 
 #################################  Utils  #######################################################
 class FaultsBuffer():
-    """48-byte NVM fault-buffer entry used by P/N 7121-19971."""
+    """48-byte NVM fault-buffer"""
 
     SIZE = 48
 
@@ -407,7 +407,16 @@ class RWHandler(QObject):
 
 class RsWorker(QObject):
     PARAMETER_TABLE_POINTER_ADDRESS = 0x2084
+    #---
+    NVM_SOFTWARE_ISSUE_NUMBER_OFFSET = 0x0000
+    NVM_SOFTWARE_LINK_NUMBER_OFFSET = 0x0002
+    NVM_BIT_FAULT_MATRIX_LATCH_OFFSET = 0x0006
     NVM_FAULT_BUFFER_POINTER_OFFSET = 0x000A
+    NVM_ELAPSED_TIME_COUNTER_OFFSET = 0x000C
+    NVM_FAULT_BUFFER_CLEAR_FLAG_OFFSET = 0x001C
+    NVM_SOFTWARE_CRC_CHECKSUM_OFFSET = 0x0082
+    NVM_POWER_DOWN_BUFFER_OFFSET = 0x008A
+    #---
     FAULT_MEMORY_START = 0x1000
     FAULT_MEMORY_END = 0x1FFE
     FAULT_BUFFER_COUNT = 42
@@ -672,6 +681,7 @@ class RsWorker(QObject):
         # If all buffers read -> finish
         if self._fb_current_n >= self._fb_total:
             self._fb_in_progress = False
+            self.sig_show_fbuffs.emit(self._fb_fbuffs_accumulated)
             # ensure progress completion
             self.sig_progress_read_buffs.emit(100)
             print(f'Finished reading {len(self._fb_fbuffs_accumulated)} fault buffers')

@@ -9,24 +9,57 @@ from PyQt5.QtSerialPort import QSerialPort
 
 #################################  Utils  #######################################################
 class FaultsBuffer():
+    """48-byte NVM fault-buffer entry used by P/N 7121-19971."""
+
+    SIZE = 48
+
     def __init__(self, raw_buffer: list[str]):
-        self.fault_code = int(raw_buffer[0], 16)
-        self.internal_flight_leg = (int(raw_buffer[1], 16) & 0x00FF) | (int(raw_buffer[2], 16) & 0x00FF) << 8
-        self.internal_flight_mode = int(raw_buffer[3], 16)
-        self.intermittent_count = int(raw_buffer[4], 16)
-        self.flight_phase = int(raw_buffer[5], 16)
-        self.ac_id = ''
-        for i in range(7):
-            self.ac_id += bytes.fromhex(raw_buffer[6+i]).decode('ascii')
-        self.flight_num = ''
-        for i in range(8):
-            self.flight_num += bytes.fromhex(raw_buffer[13+i]).decode('utf-8')
-        self.time = f'{int(raw_buffer[21])}:{int(raw_buffer[22][-1:] + raw_buffer[23][:-1])}:{60 * (int(raw_buffer[23][-1:])/10)}' # PAGE 1031
-        self.date = f'{int(raw_buffer[24])}.{int(raw_buffer[25])}.{int(raw_buffer[26])}'
-        self.internal_lru_num = int(raw_buffer[27], 16)
-        matrix_bytes = raw_buffer[28:40]
-        self.fault_matrix = int("".join(reversed(matrix_bytes)), 16)
-        self.failure_class = int(raw_buffer[40], 16)
+        if len(raw_buffer) != self.SIZE:
+            raise ValueError(
+                f'Fault buffer must contain {self.SIZE} bytes, got {len(raw_buffer)}'
+            )
+
+        try:
+            raw = bytes(int(value, 16) for value in raw_buffer)
+        except (TypeError, ValueError) as exc:
+            raise ValueError('Fault buffer contains an invalid hexadecimal byte') from exc
+
+        def u16(offset: int) -> int:
+            return int.from_bytes(raw[offset:offset + 2], byteorder='little', signed=False)
+
+        def s16(offset: int) -> int:
+            return int.from_bytes(raw[offset:offset + 2], byteorder='little', signed=True)
+
+        self.fault_code = raw[0]
+        self.intermittent_count = raw[1] & 0x07
+        self.bbj_sel_in = bool(raw[1] & 0x08)
+        self.flight_leg_counter = int.from_bytes(raw[2:6], byteorder='little', signed=False)
+        self.elapsed_time_ticks = int.from_bytes(raw[6:10], byteorder='little', signed=False)
+        self.elapsed_time_seconds = self.elapsed_time_ticks / 20
+        self.disc_info1 = int.from_bytes(raw[10:13], byteorder='little', signed=False)
+        self.disc_info2 = int.from_bytes(raw[13:16], byteorder='little', signed=False)
+
+        # CMM scaling: binary .5 -> 10 fractional bits, binary .13 -> 2,
+        # binary .7 -> 8. Pressure values are converted from psi to hPa.
+        self.ambient_pressure_hpa = round((u16(16) / 1024) * PSI_HPA, 2)
+        self.cabin_pressure_hpa = round((u16(18) / 1024) * PSI_HPA, 2)
+        self.ambient_pressure_rate_slfpm = s16(20) / 4
+        self.cabin_pressure_rate_slfpm = s16(22) / 4
+        self.cruise_flight_level = s16(24)
+        self.landing_field_elevation_ft = s16(26)
+        self.ofv_position_deg = s16(28) / 256
+
+        self.dcpcs_fault_word = u16(30)
+        self.ext_sys_fault_word = u16(32)
+        self.ctr_fault_word1 = u16(34)
+        self.ctr_fault_word2 = u16(36)
+        self.ofv_fault_word1 = u16(38)
+        self.ofv_fault_word2 = u16(40)
+        self.pnl_fault_word1 = u16(42)
+        self.fault_matrix = int.from_bytes(raw[30:44], byteorder='little', signed=False)
+
+        self.pref_hpa = round((u16(44) / 1024) * PSI_HPA, 2)
+        self.ofv_command_br_deg = s16(46) / 256
 
     def __str__(self):
         lines = []
@@ -373,6 +406,13 @@ class RWHandler(QObject):
 
 
 class RsWorker(QObject):
+    PARAMETER_TABLE_POINTER_ADDRESS = 0x2084
+    NVM_FAULT_BUFFER_POINTER_OFFSET = 0x000A
+    FAULT_MEMORY_START = 0x1000
+    FAULT_MEMORY_END = 0x1FFE
+    FAULT_BUFFER_COUNT = 42
+    FAULT_BUFFER_SIZE = FaultsBuffer.SIZE
+
     signal_pc_alt = pyqtSignal(tuple)
     sig_send_consts = pyqtSignal(dict)
     sig_rw_reply = pyqtSignal(int, str)
@@ -403,9 +443,10 @@ class RsWorker(QObject):
 
         # Fault-buffers async read state
         self._fb_in_progress = False
-        self._fb_total = 32
+        self._fb_total = self.FAULT_BUFFER_COUNT
         self._fb_current_n = 0
         self._fb_current_byte_index = 0
+        self._fb_current_address = None
         self._fb_current_raw = []
         self._fb_fbuffs_accumulated = []
         self._fb_progress = 0
@@ -512,13 +553,58 @@ class RsWorker(QObject):
         print(f'SN: {sn}')
         return sn
 
-    def read_fault_buffer(self, n: int, priority: int = 50) -> list[str]:
+    def find_parameter_address(self, offset: int, priority: int = 30) -> int:
+        """Resolve a parameter address through the table rooted at 0x2084."""
+        if not 0 <= offset <= 0xFFFF:
+            raise ValueError(f'Invalid parameter-table offset: {offset}')
+
+        table_base_reply = self.handler.read_word(
+            self.PARAMETER_TABLE_POINTER_ADDRESS,
+            priority=priority,
+        )
+        if table_base_reply is None:
+            raise RuntimeError('Failed to read parameter-table base address at 2084H')
+
+        table_base = int(table_base_reply, 16)
+        pointer_entry_address = table_base + offset
+        if pointer_entry_address > 0xFFFF:
+            raise ValueError(
+                f'Parameter-table entry is outside address space: {pointer_entry_address:05X}H'
+            )
+
+        parameter_address_reply = self.handler.read_word(
+            pointer_entry_address,
+            priority=priority,
+        )
+        if parameter_address_reply is None:
+            raise RuntimeError(
+                f'Failed to resolve parameter address at {pointer_entry_address:04X}H'
+            )
+
+        return int(parameter_address_reply, 16)
+
+    @classmethod
+    def next_fault_memory_address(cls, address: int) -> int:
+        """Advance one stored byte in the even-addressed circular NVM bank."""
+        if not cls.FAULT_MEMORY_START <= address <= cls.FAULT_MEMORY_END:
+            raise ValueError(f'Address {address:04X}H is outside fault memory')
+        if address & 1:
+            raise ValueError(f'Fault-memory address must be even: {address:04X}H')
+        if address == cls.FAULT_MEMORY_END:
+            return cls.FAULT_MEMORY_START
+        return address + 2
+
+    def read_fault_buffer(self, start_address: int, priority: int = 30) -> tuple[list[str], int]:
+        """Read one 48-byte buffer and return it with the next circular address."""
+        address = start_address
         buffer = []
-        for base in range(0xB001, 0xB02A):
-            addr = base + n * 0x29
-            data_byte = self.handler.read_byte(addr, priority=priority)
+        for _ in range(self.FAULT_BUFFER_SIZE):
+            data_byte = self.handler.read_byte(address, priority=priority)
+            if data_byte is None:
+                raise RuntimeError(f'Failed to read fault buffer byte at {address:04X}H')
             buffer.append(data_byte)
-        return buffer
+            address = self.next_fault_memory_address(address)
+        return buffer, address
 
     @pyqtSlot()
     def slot_get_consts(self):
@@ -588,12 +674,10 @@ class RsWorker(QObject):
             self._fb_in_progress = False
             # ensure progress completion
             self.sig_progress_read_buffs.emit(100)
-            self.sig_show_fbuffs.emit(self._fb_fbuffs_accumulated)
+            print(f'Finished reading {len(self._fb_fbuffs_accumulated)} fault buffers')
             return
 
-        # compute address for current byte
-        base = 0xB001 + self._fb_current_byte_index
-        addr = base + self._fb_current_n * 0x29
+        addr = self._fb_current_address
 
         try:
             # Читаем буферы с низким приоритетом (30), чтобы PC/ALT (приоритет 10) проходил в очередь
@@ -610,11 +694,12 @@ class RsWorker(QObject):
             return
 
         self._fb_current_raw.append(dat)
+        self._fb_current_address = self.next_fault_memory_address(addr)
 
         self._fb_current_byte_index += 1
 
-        # if we finished current buffer (41 bytes)
-        if self._fb_current_byte_index >= 0x29:  # 41
+        # One new-format fault buffer contains 48 bytes.
+        if self._fb_current_byte_index >= self.FAULT_BUFFER_SIZE:
             try:
                 fb = FaultsBuffer(self._fb_current_raw)
             except Exception as e:
@@ -622,11 +707,13 @@ class RsWorker(QObject):
                 self.sig_error.emit(f'Error parsing fault buffer #{self._fb_current_n}: {e}')
                 return
 
+            print(f'Fault buffer #{self._fb_current_n}:\n{fb}\n')
             self._fb_fbuffs_accumulated.append(fb)
             self.raw_buffs.extend(self._fb_current_raw)
 
-            # progress similar to previous behaviour: +3 per buffer
-            self._fb_progress += 3
+            self._fb_progress = round(
+                (self._fb_current_n + 1) * 100 / self._fb_total
+            )
             self.sig_progress_read_buffs.emit(self._fb_progress)
 
             # prepare for next buffer
@@ -643,17 +730,42 @@ class RsWorker(QObject):
         if self._fb_in_progress:
             return
 
-        # Не вызываем slot_get_consts перед чтением буферов,
-        # вместо этого запускаем её асинхронно с низким приоритетом
-        QTimer.singleShot(100, self.slot_get_consts)
+        try:
+            pointer_parameter_address = self.find_parameter_address(
+                self.NVM_FAULT_BUFFER_POINTER_OFFSET,
+                priority=30,
+            )
+            first_buffer_reply = self.handler.read_word(
+                pointer_parameter_address,
+                priority=30,
+            )
+            if first_buffer_reply is None:
+                raise RuntimeError(
+                    f'Failed to read NVM fault-buffer pointer at '
+                    f'{pointer_parameter_address:04X}H'
+                )
+            first_buffer_address = int(first_buffer_reply, 16)
+            if not self.FAULT_MEMORY_START <= first_buffer_address <= self.FAULT_MEMORY_END:
+                raise ValueError(
+                    f'Invalid NVM fault-buffer address: {first_buffer_address:04X}H'
+                )
+            if first_buffer_address & 1:
+                raise ValueError(
+                    f'NVM fault-buffer address must be even: {first_buffer_address:04X}H'
+                )
+        except Exception as e:
+            self.sig_error.emit(f'Failed to locate NVM fault buffers: {e}')
+            return
         
         # initialize state
         self._fb_in_progress = True
         self._fb_current_n = 0
         self._fb_current_byte_index = 0
+        self._fb_current_address = first_buffer_address
         self._fb_current_raw = []
         self._fb_fbuffs_accumulated = []
         self._fb_progress = 0
+        self.raw_buffs = []
 
         self.sig_progress_read_buffs.emit(0)
 

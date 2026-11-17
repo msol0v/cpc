@@ -421,6 +421,7 @@ class RsWorker(QObject):
     FAULT_MEMORY_END = 0x1FFE
     FAULT_BUFFER_COUNT = 42
     FAULT_BUFFER_SIZE = FaultsBuffer.SIZE
+    FAULT_BUFFER_DATA_END = FAULT_MEMORY_START + FAULT_BUFFER_COUNT * FAULT_BUFFER_SIZE * 2 - 2
 
     signal_pc_alt = pyqtSignal(tuple)
     sig_send_consts = pyqtSignal(dict)
@@ -594,12 +595,12 @@ class RsWorker(QObject):
 
     @classmethod
     def next_fault_memory_address(cls, address: int) -> int:
-        """Advance one stored byte in the even-addressed circular NVM bank."""
-        if not cls.FAULT_MEMORY_START <= address <= cls.FAULT_MEMORY_END:
+        """Следующий байт в кольце из 42 записей."""
+        if not cls.FAULT_MEMORY_START <= address <= cls.FAULT_BUFFER_DATA_END:
             raise ValueError(f'Address {address:04X}H is outside fault memory')
         if address & 1:
             raise ValueError(f'Fault-memory address must be even: {address:04X}H')
-        if address == cls.FAULT_MEMORY_END:
+        if address == cls.FAULT_BUFFER_DATA_END:
             return cls.FAULT_MEMORY_START
         return address + 2
 
@@ -739,39 +740,12 @@ class RsWorker(QObject):
         # Start asynchronous read of fault buffers. If already running, ignore.
         if self._fb_in_progress:
             return
-
-        try:
-            pointer_parameter_address = self.find_parameter_address(
-                self.NVM_FAULT_BUFFER_POINTER_OFFSET,
-                priority=30,
-            )
-            first_buffer_reply = self.handler.read_word(
-                pointer_parameter_address,
-                priority=30,
-            )
-            if first_buffer_reply is None:
-                raise RuntimeError(
-                    f'Failed to read NVM fault-buffer pointer at '
-                    f'{pointer_parameter_address:04X}H'
-                )
-            first_buffer_address = int(first_buffer_reply, 16)
-            if not self.FAULT_MEMORY_START <= first_buffer_address <= self.FAULT_MEMORY_END:
-                raise ValueError(
-                    f'Invalid NVM fault-buffer address: {first_buffer_address:04X}H'
-                )
-            if first_buffer_address & 1:
-                raise ValueError(
-                    f'NVM fault-buffer address must be even: {first_buffer_address:04X}H'
-                )
-        except Exception as e:
-            self.sig_error.emit(f'Failed to locate NVM fault buffers: {e}')
-            return
         
         # initialize state
         self._fb_in_progress = True
         self._fb_current_n = 0
         self._fb_current_byte_index = 0
-        self._fb_current_address = first_buffer_address
+        self._fb_current_address = self.FAULT_MEMORY_START
         self._fb_current_raw = []
         self._fb_fbuffs_accumulated = []
         self._fb_progress = 0

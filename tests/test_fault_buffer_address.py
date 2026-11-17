@@ -34,6 +34,37 @@ class FaultBufferAddressTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             RsWorker.next_fault_memory_address(0x1FC0)
 
+    def test_reentrant_poll_does_not_start_another_read(self):
+        worker = RsWorker()
+        calls = []
+
+        def read_pc_alt():
+            calls.append(1)
+            worker.on_timer_poll()
+
+        worker.read_pc_alt = read_pc_alt
+        worker.on_timer_poll()
+
+        self.assertEqual(calls, [1])
+        self.assertFalse(worker.is_polling)
+
+    def test_fault_byte_timeout_retries_same_address(self):
+        worker = RsWorker()
+        addresses = []
+
+        def read_byte(address, priority=50):
+            addresses.append(address)
+            return None if len(addresses) == 1 else '2F'
+
+        worker.handler.read_byte = read_byte
+        worker._fb_in_progress = True
+        worker._fb_current_address = 0x11D6
+        worker._fb_step()
+
+        self.assertEqual(addresses, [0x11D6, 0x11D6])
+        self.assertEqual(worker._fb_current_raw, ['2F'])
+        self.assertEqual(worker._fb_current_address, 0x11D8)
+
 
 if __name__ == '__main__':
     unittest.main()

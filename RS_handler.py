@@ -422,6 +422,7 @@ class RsWorker(QObject):
     FAULT_BUFFER_COUNT = 42
     FAULT_BUFFER_SIZE = FaultsBuffer.SIZE
     FAULT_BUFFER_DATA_END = FAULT_MEMORY_START + FAULT_BUFFER_COUNT * FAULT_BUFFER_SIZE * 2 - 2
+    FAULT_BYTE_READ_ATTEMPTS = 3
 
     signal_pc_alt = pyqtSignal(tuple)
     sig_send_consts = pyqtSignal(dict)
@@ -667,8 +668,13 @@ class RsWorker(QObject):
 
     @pyqtSlot()
     def on_timer_poll(self):
-        # Всегда пытаемся читать PC/ALT, независимо от состояния буферов ошибок
-        self.read_pc_alt()
+        if self.is_polling:
+            return
+        self.is_polling = True
+        try:
+            self.read_pc_alt()
+        finally:
+            self.is_polling = False
 
     @pyqtSlot()
     def test(self):
@@ -691,8 +697,12 @@ class RsWorker(QObject):
         addr = self._fb_current_address
 
         try:
-            # Читаем буферы с низким приоритетом (30), чтобы PC/ALT (приоритет 10) проходил в очередь
-            dat = self.handler.read_byte(addr, priority=30)
+            dat = None
+            for attempt in range(1, self.FAULT_BYTE_READ_ATTEMPTS + 1):
+                dat = self.handler.read_byte(addr, priority=30)
+                if dat is not None:
+                    break
+                print(f'Повтор чтения NVM {addr:04X}H: попытка {attempt}')
         except Exception as e:
             self._fb_in_progress = False
             self.sig_error.emit(f'Error while reading fault buffers at addr {addr:04X}: {e}')
@@ -701,7 +711,10 @@ class RsWorker(QObject):
         # if device timed out or returned None -> abort
         if dat is None:
             self._fb_in_progress = False
-            self.sig_error.emit(f'Failed to read fault buffer byte at addr {addr:04X}')
+            self.sig_error.emit(
+                f'Failed to read fault buffer byte at addr {addr:04X} '
+                f'after {self.FAULT_BYTE_READ_ATTEMPTS} attempts'
+            )
             return
 
         self._fb_current_raw.append(dat)

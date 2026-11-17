@@ -1,217 +1,1366 @@
+"""BITE fault catalogue for CMM 21-33-20, P/N 7121-19971.
 
-base = {
-    104: 0,
-    105: 16,
-    106: 32,
-    107: 48,
-    110: 64,
-    111: 80
-}
+Matrix bit names: Testing and Fault Isolation, pages 1021-1024.
+Fault indications and descriptions: Table 5, pages 39-58.
+The manual lists no separate Table 5 entry for fault code 000.
+"""
 
-class FaultBit():
-    """
-    Класс содержит всю информацию об ошибке из таблицы 1040, но не содержит значение
-    Нужен для отрисовки списка
-    """
-    def __init__(self, code:int, name:str, fclass:int=0, cause:str='', descriptor:str=''):
-        self.code = code
-        self.name = name
-        self.fault_class = fclass
-        self.cause = cause
-        self.descriptor = descriptor
-
-Faults = [] # Список FaultBit последовательно как в таблицу 1040 из СММ
-
-def ConfigureFaultBits (product='not 20791-xxAD'):
-    _faults = [
-        FaultBit(0,'RAM_FAILED_RAM', 1, 'IC400', 'Non-Destructive Internal RAM Test μC cannot access\nthe internal RAM correctly'),
-        FaultBit(1,'RAM_FAILED_REG', 1, 'IC400\nIC702\nIC703', 'Non-Destructive External RAM Test μC cannot access\nthe external RAM correctly'),
-        FaultBit(2,'FMS1_DATA_OUT_OF_RANGE', 3, 'External', 'Invalid data from FMS1'),
-        FaultBit(3,'FMS2_DATA_OUT_OF_RANGE', 3, 'External', 'Invalid data from FMS2'),
-        FaultBit(4,'ACT_STATUS_FAIL', 1, 'OFV Ebox\nA/C Wirin', 'Status (operational or standby) of CPC and dedicated\nEbox do not match'),
-        FaultBit(5,'CAL_TIME_OPEN_FAIL', 1, 'defective FDM\ndefective EBox\ndefective AuMot\ndefective Gbox', 'OFV does not open within the specified time frame'),
-    ]
-
-    Faults.extend(_faults)
-
-    if 'not 20791-xxAD' in product:
-        Faults.append(FaultBit(6,'BACKGROUND_TIMEOUT', descriptor='If one run through all background tasks is not finished\nafter 50 seconds this FC is set.'))
-        Faults.append(FaultBit(7, 'UNUSED'))
-    else:
-        Faults.append(FaultBit(6, 'PC_MISMATCH_FAIL', 1))
-        Faults.append(FaultBit(7, 'PC_EBOX_FAIL'))
-
-    _faults = [
-        FaultBit(8,'ROM_CRC_FAIL', 1, 'IC700\nIC701', 'Calculated Cyclic Redundancy Code differs from stored one.'),
-        FaultBit(9,'RS422_WR_FAIL',1,'IC1700\nIC1701', 'RS422 serial link transmitter does not work properly.'),
-        FaultBit(10,'RS422_CHECKSUM_FAIL',descriptor='The message identifier, the intermediate characters and\n'
-                                                     'checksum are checked by comparing the transmitted\n'
-                                                     'message to the checksum calculated in the receiver\nroutine.'),
-        FaultBit(11,'CAL_TIME_CLOSE_FAIL',1,'defective FDM\ndefective EBox\ndefective AuMot\ndefective Gbox', 'OFV does not close within the specified time frame'),
-        FaultBit(12,'WDT_EXPIRED_FAIL',1, descriptor='CPC was reset due to watchdog timer reset'),
-        FaultBit(13, 'PC_STEP_FAIL', 1, 'defective pressure\nransducer\nIC600', 'Cabin pressure changes in an unrealistic way.'),
-        FaultBit(14, 'ADIRS1_DATA_OUT_OF_RANGE', 3, 'External', 'Invalid data from ADIRS1'),
-        FaultBit(15, 'ADIRS2_DATA_OUT_OF_RANGE', 3, 'External', 'Invalid data from ADIRS2')
-    ]
-
-    Faults.extend(_faults)
-
-    if 'not 20791-xxAD' in product:
-        Faults.append(FaultBit(16,'A/D_FRAME_COMPLETED_LATE_FAIL', descriptor='If the sum of the A/D conversion times of all A/D chan-\n'
-                                                                              'nels requested serially is too long, set fault code flag\n16.'))
-    else:
-        Faults.append(FaultBit(16, 'UNUSED'))
-
-    _faults = [
-        FaultBit(17, 'EIU_SIGNAL_REPLACED', 3, descriptor='Flight mode has been changed irregularly'),
-        FaultBit(18, 'ZCAL_FAIL'),
-        FaultBit(19, 'ADIRS1_FAIL', 3, 'External', 'No data from ADIRS1'),
-        FaultBit(20, 'ADIRS2_FAIL', 3, 'External', 'No data from ADIRS2'),
-        FaultBit(21, 'ADIRS3_FAIL', 3, 'External', 'No data from ADIRS3'),
-        FaultBit(22, 'ARINC_WR_FAIL', 1, 'IC1000\nIC1008\nIC1100\nIC1005\nIC900', 'More than 2 wraparounds failed.'),
-        FaultBit(23, 'RS422_ACTIVITY_FAIL', descriptor='If no serial interrupts from RS422 link for 15 consecu\ntive error counter cycles then set fault code flag 23.'),
-        FaultBit(24, 'SLEW_RATE_CLOSE_FAIL', 3),
-        FaultBit(25, 'ZCAL_OPEN_FAIL', 1, 'defective FDM\ndefective Ebox', 'Difference between nominal and sensed open position\nis out of range.'),
-        FaultBit(26, 'ZCAL_CLOSE_FAIL', 1, 'defective FDM\ndefective Ebox', 'Difference between nominal and sensed close position\nis out of range.'),
-        FaultBit(27, 'ADIRS3_DATA_OUT_OF_RANGE', 3, 'External', 'Invalid data from ADIRS3'),
-        FaultBit(28, 'STATE_CHANGE_DURING_SCBIT',descriptor='If a state change occurs during the performance of\nSCBIT, set fault code flag 28.'),
-        FaultBit(29, 'SCBIT_START_FAIL', 3, 'OFV', 'OFV does not open during SCBIT'),
-        FaultBit(30, 'PC_VERSUS_PA_FAIL', 1, descriptor='This test shall compare the calculated cabin pressure\n'
-                                                        'PC with the ambient pressure PA received from ADIRS\n during IBIT.')
-    ]
-
-    Faults.extend(_faults)
-
-    if 'not 20791-xxAD' in product:
-        Faults.append(FaultBit(31, 'UNUSED'))
-    else:
-        Faults.append(FaultBit(31, 'PC_EBOX_VERSUS_PA_FAIL', 2))
-
-    _faults = [
-        FaultBit(32, 'SYSTEM_FAIL', descriptor='This flag is activated with every Class I failure or if all\nthree ADIRS_FAILs have been triggered.'),
-        FaultBit(33, 'OFV_BETA_FAIL', 1, 'defective FDM\ndefective Ebox', 'The sensed OFV position does not match with the\naircraft altitude.'),
-        FaultBit(34, 'HIGH_CABIN_RATE_FAIL', 1, 'defective pressure\ntransducer\nIC600\nIC601'),
-        FaultBit(35, 'LGCIU_SIGNAL_REPLACED', 3, descriptor='During change of flight mode the landing gear signal\nfrom the LGCIU has been replaced'),
-        FaultBit(36, '+15V_POWER_FAIL', 1 , 'IC1800', '+15 V cannot be supplied correctly'),
-        FaultBit(37, '-15V_POWER_FAIL', 1, 'IC1800', '-15 V cannot be supplied correctly'),
-        FaultBit(38, 'AD_CONVERTER_FAIL', 1, 'IC600', 'Conversion of analog signals into digital cannot be per-\nformed in a correct manner.'),
-        FaultBit(39, 'CFDS_WR_FAIL', 3, descriptor='All ARINC multiplexers are switched in wraparound position simultaneously and checked one after the other\n'
-                                                   'during one routine. The check compares the bit patterns\n'
-                                                   'sent out and received back.'),
-        FaultBit(40, 'PASS_SIGN_WR_FAIL', 3, descriptor='If discrete output PASS_SIGN and discrete input\n'
-                                                        'PASS_SIGN_WR do not match for 10 consecutive error\n'
-                                                        'counter cycles then set fault code flag 40.'),
-        FaultBit(41, 'FAULT_WARN_WR_FAIL', 1, 'IC1604', 'Fault Warn Light discrete line does not work correctly.'),
-        FaultBit(42, 'PC_CAL_ROM_FAIL', 1, 'Pressure Sensor\nIC500', 'Calibration data for the pressure sensor is corrupted.'),
-        FaultBit(43, 'NVM_FAIL', 1, descriptor='Checks integrity of NVM chips.'),
-        FaultBit(44, 'CFDS_BUS_FAIL', descriptor='If the controller does not receive label 227 (BITE COM-\n'
-                                                 'MAND WORD) for 1 second CFDS_BUS_FAIL is set.'),
-        FaultBit(45, 'ADIRS1_WR_FAIL', 3, descriptor='If the patterns sent out and received back via ADIRS1\n'
-                                                     'do not match for three consecutive times after the multi\n'
-                                                     'plexers had been switched and the receivers had been\ncleared this fail is set.'),
-        FaultBit(46, 'ADIRS2_WR_FAIL', 3, descriptor='If the patterns sent out and received back via ADIRS2\n'
-                                                     ' do not match for three consecutive times after the multi\n'
-                                                     ' plexers had been switched and the receivers had been\ncleared this fail is set.'),
-        FaultBit(47, 'ADIRS3_WR_FAIL', 3, descriptor='If the patterns sent out and received back via ADIRS3\n'
-                                                     ' do not match for three consecutive times after the multi\n'
-                                                     ' plexers had been switched and the receivers had been\ncleared this fail is set.'),
-        FaultBit(48, 'WDT_TEST_FAIL', 1, descriptor='Watchdog timer does not work properly.'),
-        FaultBit(49, 'FMS1_WR_FAIL', 3, descriptor='If the patterns sent out and received back via FMS1 do\n'
-                                                   'not match for three consecutive times after the multiplexers had been switched and the receivers had been\n'
-                                                   'cleared this fail is set.'),
-        FaultBit(50, 'LFES_FAIL', 3, 'LFES', 'During IBIT the controller sends via ARINC bus a message to CFDS which asks the operator to set the LFES\n'
-                                             'to the "14000 FT" position. The received analogue voltage is compared to the expected value.'),
-        FaultBit(51, 'RS422_FAULT_ISOLATION_CTR_FAIL', 1, 'IC1700\nIC1701', 'The root cause for faulty RS422 communication is loca-\n'
-                                                                            'ted within the CPC.'),
-        FaultBit(52, 'RS422_FAULT_ISOLATION_ACT_FAIL', 1, 'defective A/C wiring\ndefective Ebox', 'The root cause for faulty RS422 communication is loca-\n'
-                                                                                                  'ted within the EBox'),
-        FaultBit(53, 'FMS2_WR_FAIL', 3, descriptor='If the patterns sent out and received back via FMS2 do\n'
-                                                   'not match for three consecutive times after the multiplexers had been switched and the receivers had been\n'
-                                                   'cleared this fail is set.'),
-        FaultBit(54, 'FMS1_FAIL', 3, 'External', 'no data from FMS1'),
-        FaultBit(55, 'FMS2_FAIL', 3, 'External', 'no data from FMS2'),
-        FaultBit(56, '28V_DRIVE_LOW', descriptor='If the voltage at the output of the high side switch drops\n'
-                                                 'below nominal 22.5V, the appearance of\n'
-                                                 'OFV_LOOP_CLOSURE_FAIL flag received from OFV\n'
-                                                 'does not cause a SYSTEM_FAIL. This check is to validate this condition.'),
-        FaultBit(57, '+28V_DRIVE_CUT_OFF', descriptor='If the voltage at the output of the high side switch drops\n'
-                                                      'below nominal voltage of 16.55 V, the switch is shut off\n'
-                                                      'and flag is set'),
-        FaultBit(58, 'HSS_OPEN_FAIL', 1, descriptor='Check for a high side switch that does not follow\n'
-                                                    ' command to switch power off.'),
-        FaultBit(59, 'HSS_SHORT_FAIL', 1, descriptor='Check for a high side switch that does not follow command to switch power on.'),
-        FaultBit(60, 'SLEW_RATE_OPEN_FAIL', 3),
-        FaultBit(61, 'PC_SENSOR_FAIL', 1, 'Pressure Sensor\nIC600\nIC601', 'Values measured by pressure transducer are beyond\ncertain limits.'),
-        FaultBit(62, 'SCBIT_OPEN_FAIL', 3, descriptor='OFV does not open fast enough during SCBIT.'),
-        FaultBit(63, 'SCBIT_CLOSE_FAIL', 3, descriptor='OFV does not close fast enough during SCBIT.'),
-        FaultBit(64, 'OFV_RAM_FAIL_RAM', 1, 'defective Ebox', 'OFV Non-Destructive Internal RAM Test Ebox μC cannot\naccess the internal RAM correctly'),
-        FaultBit(65, 'OFV_RAM_FAIL_REG', 1, 'defective Ebox', 'OFV Non-Destructive External RAM Test Ebox μC cannot\naccess the external RAM correctly'),
-        FaultBit(66, 'OFV_INIT_RAM_FAIL_REG', 1, 'defective Ebox', 'OFV Destructive Internal RAM Test Ebox μC cannot\naccess the internal RAM correctly'),
-        FaultBit(67, 'OFV_INIT_RAM_FAIL_RAM', 1, 'defective Ebox', 'OFV Destructive External RAM Test Ebox μC cannot\naccess the external RAM correctly'),
-    ]
-
-    Faults.extend(_faults)
-
-    if 'not 20791-xxAD' in product:
-        Faults.append(FaultBit(68, 'UNUSED'))
-    else:
-        Faults.append(FaultBit(68, 'MOTOR_DRIVER_OVERCURRENT', 1))
-
-    _faults = [
-        FaultBit(69, 'UNUSED'),
-        FaultBit(70, 'OFV_BACKGROUND_TIMEOUT'),
-        FaultBit(71, 'OFV_SIGNPOST_FAIL'),
-        FaultBit(72, 'OFV_ROM_CRC_FAIL', 1, 'defective Ebox', 'Calculated Cyclic Redundancy Code differs from stored\none'),
-        FaultBit(73, 'OFV_RS422_WR_FAIL', cause='defective Ebox', descriptor='RS422 serial link transmitter of Ebox does not work\nproperly.'),
-        FaultBit(74, 'OFV_RS422_ACTIVITY_FAIL', cause='defective Ebox'),
-        FaultBit(75, 'OFV_RS422_RCVR_INTR_FAIL', cause='defective Ebox')
-    ]
-    Faults.extend(_faults)
-
-    if 'P/N 9023-15703-xx' in product:
-        Faults.append(FaultBit(76 , 'OFV_DISCRETE_MUX_FAIL', 1, 'defective Ebox', 'μC cannot send motor direction correctly.'))
-    elif 'P/N 20790-xxyy' in product:
-        Faults.append(FaultBit(76 , 'MOTOR_DIRECTION_WR_FAIL', 1, 'defective Ebox', 'μC cannot send motor direction correctly.'))
-    else:
-        Faults.append(FaultBit(76, 'UNUSED'))
-
-    _faults = [
-        FaultBit(77, 'OFV_SENSOR_EXCITATION_FAIL', 1, 'defective FDM\ndefective Ebox', 'In order to detect failures within the potentiometer excitation\n'
-                                                                                       'circuit resp. corresponding power supply,\n'
-                                                                                       'the excitation voltage is monitored.'),
-        FaultBit(78, 'OFV_SENSOR_RANGE_FAIL', 1, 'defective FDM\ndefective Ebox', 'The Voltage sent by the FDM is out of range.'),
-        FaultBit(79, 'OFV_AIRCRAFT_ID'),
-        FaultBit(80, 'OFV_A/D_FRAME_LATE_FAIL', cause='defective Ebox'),
-        FaultBit(81, 'OFV_LOOP_CLOSURE_FAIL', 1, 'defective EBox\ndefective AMot\ndefective GBx\ndefective A/C wiring', 'OFV does not follow the controller commands.'),
-        FaultBit(82, 'OFV_UNUSED_INTR'),
-        FaultBit(83, 'OFV_ALU_FAIL', 1, 'defective Ebox', 'The Arithmetic Logics Unit of the Ebox μC is defective.'),
-        FaultBit(84, 'OFV_CHAN1_SEL'),
-        FaultBit(85, 'UNUSED'),
-        FaultBit(86, 'UNUSED'),
-        FaultBit(87, 'OFV_A/D_CONVERT_FAIL', 1, 'defective Ebox', 'Output of +15 VDC internal power supply is out of\nrange.'),
-        FaultBit(88, 'OFV_HALL_SENSOR_FAIL', 1, 'defective AMot\ndefective Ebox', 'In order to monitor the hall sensors of the motors for\n'
-                                                                                  'failure conditions, undefined sensor combinations are\n'
-                                                                                  'detected throughout a dynamic counting process.'),
-        FaultBit(89, 'OFV_SW_INTR_FAIL'),
-        FaultBit(90, 'OFV_CAB_PRESS_SWITCH_ACTIVE', descriptor='Pressure Switch of Ebox (responsible for closing OFV\nabove 14.500 FT) has been active.'),
-        FaultBit(91, 'OFV_RS422_MESSAGE_FAIL', cause='defective Ebox'),
-        FaultBit(92, 'OFV_AC_PIN_PROG_FAIL')
-    ]
-    Faults.extend(_faults)
-
-    if 'P/N 20791-xxAD' in product:
-        Faults.append(FaultBit(93, 'OFV_PRESS_SENSOR_FAIL', 2))
-    else:
-        Faults.append(FaultBit(93, 'UNUSED'))
-
-    _faults = [
-        FaultBit(94, 'UNUSED'),
-        FaultBit(95, 'UNUSED'),
-        FaultBit(96, 'EXC_CAB_ALT_WARNING'),
-    ]
-    Faults.extend(_faults)
+from dataclasses import dataclass
 
 
-def test_config():
-    ConfigureFaultBits()
-    print(f'Len faults: {len(Faults)}\n\n')
+@dataclass(frozen=True)
+class FaultBit:
+    code: int
+    name: str
+    auto_fail: str = ""
+    nvm: str = ""
+    recoverable: str = ""
+    fault_indication: str = ""
+    descriptor: str = ""
+    cmm_page: int | None = None
+    reference_name: str = ""
+
+
+Faults = [
+    FaultBit(
+        0, 'AUTO_CHANNEL_FAIL_FG',
+    ),
+    FaultBit(
+        1, 'COMM_PNL_CTR_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='A',
+        fault_indication='SYSTEM WIRING; Detail: CPC-PNL WIRING',
+        descriptor=(
+            'This fault code will also be set if a communication fail (no bus activity, parity '
+            'error, short/long word, faulty data) is detected by the CTR and the ARINC wraparound '
+            'of the CTR and the PNL is passed (fault is isolated to the inter-connect). In this '
+            'case auto channel fail will be set and the failure will be autorecoverable.'
+        ),
+        cmm_page=39,
+        reference_name='COMM_PNL_CTR_FAIL',
+    ),
+    FaultBit(
+        2, 'CTR_OFV_INTERCONN_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='SYSTEM WIRING; Detail: CPC/OFV WIRING',
+        descriptor=(
+            'This fault code will also be set if no RS422 activity is detected by the CTR and the '
+            'fault is isolated to the interconnect (CTR RS422 wraparound passed and '
+            'CONNECT_ACT_CTR_IN = false). In this case auto channel fail will be set'
+        ),
+        cmm_page=39,
+        reference_name='CTR_OFV INTERCONNECT FAIL',
+    ),
+    FaultBit(
+        3, 'LOW_CAB_PRESS_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='HI CAB ALT',
+        descriptor=(
+            'System parameter test, indicates a cabin pressure lower than 8 psi and the OFV '
+            'position is still above 5 degrees after 1 second.'
+        ),
+        cmm_page=39,
+        reference_name='LOW CAB PRESS FAIL',
+    ),
+    FaultBit(
+        4, 'DIFF_CAB_PRESS_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='CAB DIFF PRESS HI',
+        descriptor=(
+            'System parameter test, indicates a cabin differential pressure greater than 8.3 psi '
+            '(for P/N 7121-19971-01BA only: dP > 9.39 psi) with an OFV position of less than 20 '
+            'degrees after 5 seconds.'
+        ),
+        cmm_page=39,
+        reference_name='DIFF CAB PRESS FAIL',
+    ),
+    FaultBit(
+        5, 'HIGH_CAB_RATE_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='CAB RATE HI',
+        descriptor=(
+            'System parameter test, indicates a cabin pressure rate greater than 2000 SLFPM and the '
+            'OFV position is still above 5 degrees after 5 seconds or a cabin pressure rate of less '
+            'than -2000 SLFPM and the OFV position is still below 5 degrees after 5 seconds.'
+        ),
+        cmm_page=39,
+        reference_name='HIGH CAB RATE FAIL',
+    ),
+    FaultBit(
+        6, 'ELACT_STATE_OF_OPER_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='SYSTEM WIRING; Detail: CPC-PNL WIRING, PNL-OFV',
+        descriptor=(
+            'System parameter test, indicates the OFV cannot follow the state of the CTR and the '
+            'failure is not isolated to the PNLs sever switch or the CTRs HSS switch. May be caused '
+            'by an interconnect failure in the DRIVE_ENABLE_CTR_PNL line, the DRIVE_ENABLE_PNL_ACT '
+            'line, the MNL_MODE_PNL_CTR line'
+        ),
+        cmm_page=40,
+        reference_name='ELACT STATE OF OPER FAIL',
+    ),
+    FaultBit(
+        7, 'LOOP_CLOSURE_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='OFV LRU FAIL',
+        descriptor=(
+            'System parameter test, indicates that the OFV cannot follow the CTR position command '
+            '(OFV_LOOP_CLOSURE_STATUS is set to true) and the OFV position is below 20 degrees.'
+        ),
+        cmm_page=40,
+        reference_name='LOOP CLOSURE FAIL',
+    ),
+    FaultBit(
+        8, 'AUTO/ALTN/MAN_FAIL_FG',
+        auto_fail='0',
+        nvm='1',
+        recoverable='R',
+        fault_indication='AUTO/MAN ERROR',
+        descriptor=(
+            'System parameter test, indicates that more than one or none of the AUTO, ALTN or '
+            'MANUAL indications are received by the CTR.'
+        ),
+        cmm_page=40,
+        reference_name='AUTO/ALTN/MAN FAIL',
+    ),
+    FaultBit(
+        9, 'RVT_CALIBRATION_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='N',
+        fault_indication='OFV LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if the OFV does not reach the mechanical stop within time '
+            'or the calibration constant is out of range. This test is part of the IBIT only. May '
+            'be caused by a mechanical blockage/restriction of the OFV or an OFV failure.'
+        ),
+        cmm_page=40,
+        reference_name='RVT CALIBRATION FAIL',
+    ),
+    FaultBit(
+        10, 'SLEW_RATE_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='N',
+        fault_indication='OFV LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if the OFV is not able to drive fully open to fully closed '
+            'or vice versa within the given time constrains. This test is part of the IBIT only.'
+        ),
+        cmm_page=40,
+        reference_name='SLEW RATE FAIL',
+    ),
+    FaultBit(
+        11, 'OFV_MOTION_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='OFV LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if the OFV is not able to move from fully open to 105 '
+            'degrees and back within the give time constrains. This test is part of the SCBIT only.'
+        ),
+        cmm_page=41,
+        reference_name='MOTION TEST FAIL',
+    ),
+    FaultBit(
+        12, 'NOT USED',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='CONTRLR BBJ PIN (for P/N 7121-19971-01BA only)',
+        descriptor=(
+            'Matrix listing marks bit 012 as NOT USED; Table 5 lists SYSTEM WIRING. This fail flag '
+            'will be set if BBJ_SEL_IN is not tied to Ground. May be caused by a wire failure or '
+            'connection failure outside of the CTR.'
+        ),
+        cmm_page=41,
+        reference_name='SYSTEM WIRING',
+    ),
+    FaultBit(
+        13, 'MASTER_SLAVE_DISAGREE_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='SYSTEM WIRING; Detail: CONTRLR PROG PIN',
+        descriptor=(
+            'This fail flag will be set if the CTR MASTER/SLAVE pin programming is contradictory. '
+            'May be caused by a wire failure or connection failure outside of the CTR.'
+        ),
+        cmm_page=41,
+        reference_name='MASTER/SLAVE DISAGREE',
+    ),
+    FaultBit(
+        14, 'AUTO_UNDER_TEST_FAIL',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='SYSTEM WIRING; Detail: CPC-CPC WIRING',
+        descriptor=(
+            'This fail flag will be set if the CTR receives consecutively for 5 minutes an '
+            'indication that the other CTR performs IBIT while in flight. May be caused by a defect '
+            'AUTO_UNDER_TEST wire outside of the CTR which is fed to 28V_RTN.'
+        ),
+        cmm_page=41,
+        reference_name='AUTO_UNDER_TEST_IN_FAIL',
+    ),
+    FaultBit(
+        15, 'RS422_OFV_ACTIVITY_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='OFV OR WIRING',
+        descriptor=(
+            'This fail flag will be set if the CTR cannot detect OFV RS422 activity and the CTR '
+            'RS422 wraparound is passed and the CONNECT_ACT_CTR_IN is true. May be caused by an '
+            'ELACT hardware failure or by a CTR_ACT interconnection failure.'
+        ),
+        cmm_page=41,
+        reference_name='RS422_OFV_TO_CTR_ACTIVITY_FAIL',
+    ),
+    FaultBit(
+        16, 'PNL_SEVER_OPEN_FAIL_FG',
+        auto_fail='0',
+        nvm='1',
+        recoverable='R',
+        fault_indication='SEL PNL LRU FAIL',
+        descriptor=(
+            'This fail flag is set whenever the CTR detects that the PNL was unable to open the '
+            'sever switch. The test is performed if a switch from AUTO to MANUAL or from ALTN to '
+            'MANUAL is detected (CTRs opmode switched to MANUAL). This test cannot be rerun during '
+            'IBIT. Therefore this fail flag is cleared after IBIT even if the failure is still '
+            'present.'
+        ),
+        cmm_page=42,
+        reference_name='PNL_SEVER_OPEN_FAIL',
+    ),
+    FaultBit(
+        17, 'NOT USED',
+        auto_fail='0',
+        nvm='1',
+        recoverable='A',
+        fault_indication='Cabin Altitude in excess of 10000 ft',
+        descriptor=(
+            'Matrix listing marks bit 017 as NOT USED; Table 5 lists CABIN 1000 FT MESSAGE FAIL. '
+            'This message is set if cabin altitude is above 10000 ft and LFE is less than 9500 ft.'
+        ),
+        cmm_page=42,
+        reference_name='CABIN 1000 FT MESSAGE FAIL',
+    ),
+    FaultBit(
+        18, 'NOT USED',
+        auto_fail='0',
+        nvm='1',
+        recoverable='A',
+        fault_indication='Cabin Altitude in excess of 10000 ft',
+        descriptor=(
+            'Matrix listing marks bit 018 as NOT USED; Table 5 lists CABIN 13500 FT MESSAGE FAIL. '
+            'This message is set if cabin altitude is above 13500 ft and LFE is less than 13000 ft.'
+        ),
+        cmm_page=42,
+        reference_name='CABIN 13500 FT MESSAGE FAIL',
+    ),
+    FaultBit(
+        19, 'RS422_OFV_TO_CTR_MESSAGE_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='OFV LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if the CTR receives faulty data from the OFV for longer '
+            'than 3 seconds. This failure may be caused by an ELACT hardware or software failure.'
+        ),
+        cmm_page=42,
+        reference_name='RS422_OFV_TO_CTR_MESSAGE_FAIL',
+    ),
+    FaultBit(
+        20, 'OK_PNL_CTR_MISMATCH_FAIL_FG',
+        auto_fail='0',
+        nvm='1',
+        recoverable='R',
+        fault_indication='SYSTEM WIRING; Detail: CPC-PNL WIRING',
+        descriptor=(
+            'This fault code will be set if a mismatch between the discrete OK_PNL_CTR signal and '
+            'the PNL health information on the PNC fault word is detected.'
+        ),
+        cmm_page=42,
+        reference_name='OK_PNL_CTR_MISMATCH',
+    ),
+    FaultBit(
+        21, 'CONNECT_ACT_CTR_MISMATCH_FAIL_FG',
+        auto_fail='0',
+        nvm='1',
+        recoverable='R',
+        fault_indication='SYSTEM WIRING; Detail: CPC-OFV WIRING',
+        descriptor=(
+            'This fault code will be set if a failure of the discrete CONNECT_ACT_CTR line is '
+            'detected (RS422 activity is present and CONNECT_ACT_CTR = false).'
+        ),
+        cmm_page=43,
+        reference_name='CONNECT_ACT_CTR_MISMATCH',
+    ),
+    FaultBit(
+        22, 'CAS1_FAIL_FG',
+        auto_fail='0',
+        nvm='1',
+        recoverable='A',
+        fault_indication='DADC # 1 INVALID',
+        descriptor=(
+            'This fail flag indicates that the CAS received from DADC # 1 is invalid or not '
+            'updated.'
+        ),
+        cmm_page=43,
+        reference_name='CAS 1 FAIL',
+    ),
+    FaultBit(
+        23, 'CAS2_FAIL_FG',
+        auto_fail='0',
+        nvm='1',
+        recoverable='A',
+        fault_indication='DADC # 2 INVALID',
+        descriptor=(
+            'This fail flag indicates that the CAS received from DADC # 2 is invalid or not '
+            'updated.'
+        ),
+        cmm_page=43,
+        reference_name='CAS 2 FAIL',
+    ),
+    FaultBit(
+        24, 'DADC1_FAIL_FG',
+        auto_fail='0/1',
+        nvm='1',
+        recoverable='A',
+        fault_indication='DADC # 1 INVALID',
+        descriptor=(
+            'This fail flag is set if no bus activity of DADC1 is detected, pressure altitude or '
+            'barocorrected pressure altitude are not received or faulty for longer than 2 seconds. '
+            'Auto channel fail will be set if DADC2 FAIL is set too. Auto channel fail will NOT be '
+            'set if true air speed only is missing or faulty for longer than 2 seconds.'
+        ),
+        cmm_page=43,
+        reference_name='DADC1 FAIL',
+    ),
+    FaultBit(
+        25, 'DADC2_FAIL_FG',
+        auto_fail='0/1',
+        nvm='1',
+        recoverable='A',
+        fault_indication='DADC # 2 INVALID',
+        descriptor=(
+            'This fail flag is set if no bus activity of DADC2 is detected, pressure altitude or '
+            'barocorrected pressure altitude are not received or faulty for longer than 2 '
+            'seconds.Auto channel fail will be set if DADC1 FAIL is set too. Auto channel fail will '
+            'NOT be set if true air speed only is missing or faulty for longer than 2 seconds.'
+        ),
+        cmm_page=43,
+        reference_name='DADC2 FAIL',
+    ),
+    FaultBit(
+        26, 'SMC1_FAIL_FG',
+        auto_fail='0',
+        nvm='1',
+        recoverable='A',
+        fault_indication='SMC #1 INVALID',
+        descriptor=(
+            'This fail flag will be set if no bus activity of SMC1 is detected, or N1 value or N2 '
+            'value is not received or invalid for longer than 2 seconds. Auto channel fail will be '
+            'set if SMC2 FAIL is set too. Auto channel fail will only be set as long as the mode is '
+            'GR or TO.'
+        ),
+        cmm_page=44,
+        reference_name='SMC1 FAIL',
+    ),
+    FaultBit(
+        27, 'SMC2_FAIL_FG',
+        auto_fail='0',
+        nvm='1',
+        recoverable='A',
+        fault_indication='SMC #2 INVALID',
+        descriptor=(
+            'This fail flag will be set if no bus activity of SMC2 is detected, or N1 value or N2 '
+            'value is not received or invalid for longer than 2 seconds. Auto channel fail will be '
+            'set if SMC1 FAIL is set too. Auto channel fail will only be set as long as the mode is '
+            'GR or TO.'
+        ),
+        cmm_page=44,
+        reference_name='SMC2 FAIL',
+    ),
+    FaultBit(
+        28, 'LDG_GEAR_DISAGREE_FAIL_FG',
+        auto_fail='0',
+        nvm='1',
+        recoverable='A',
+        fault_indication='LDG/GEAR DISAGREE',
+        descriptor=(
+            'This fail flag will be set if a mode switch GR to CI or TO to CI occurs due to '
+            'ambiguous landing gears using the condition for true air speed. May be caused by a '
+            'failure of the “LEFT_WHEELS_ON_ GND” or “RIGHT_WHEELS_ON_GND” signals outside of the '
+            'CTR.'
+        ),
+        cmm_page=44,
+        reference_name='LDG_GEAR_DISAGREE_FAIL',
+    ),
+    FaultBit(
+        29, 'N1/N2_LOW_FAIL_FG',
+        auto_fail='0',
+        nvm='1',
+        recoverable='A',
+        fault_indication='N1/N2 LOW',
+        descriptor=(
+            'This fail flag will be set if a mode switch GR to CI occurs due to no valid N1 or N2 '
+            'value available or a valid N1 or N2 value below the value required for the mode '
+            'switch. May be caused by a lower throttle lever setting during take off run or an SMC '
+            'fail. Failure is outside of the DCPCS.'
+        ),
+        cmm_page=44,
+        reference_name='N1/N2_LOW_FAIL',
+    ),
+    FaultBit(
+        30, 'INFLOW_LEAKAGE_FAIL_FG',
+        auto_fail='0',
+        nvm='1',
+        recoverable='A',
+        fault_indication='LO INFL/HI LEAKG',
+        descriptor=(
+            'This fail flag will be set whenever the OFV position is below 3 degrees for longer '
+            'than 5 seconds. This is no failure of the DCPCS. May be caused by a low inflow '
+            'situation or a high leakage.'
+        ),
+        cmm_page=44,
+        reference_name='INFLOW_LEAKAGE_FAIL',
+    ),
+    FaultBit(
+        31, 'AC_RATE_HIGH_FAIL_FG',
+        auto_fail='0',
+        nvm='1',
+        recoverable='A',
+        fault_indication='ACFT RATE HI',
+        descriptor=(
+            'This fail flag will be set whenever the cabin rate is above the allowed hardlimit for '
+            'more than 5 seconds caused by a high A/C rate in conjunction with maximum dp (7.95 '
+            'psi) or negative dp (0.05 psi) is present. This is no failure of the DCPCS.'
+        ),
+        cmm_page=45,
+        reference_name='AC_RATE_HIGH_FAIL',
+    ),
+    FaultBit(
+        32, 'CPC97_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='CONTRLR LRU FAIL',
+        descriptor=(
+            'The CPC97 gate array tests detected a failure in the CPC97 gate array.'
+        ),
+        cmm_page=46,
+        reference_name='CPC97_FAIL',
+    ),
+    FaultBit(
+        33, 'RAM_REG_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='CONTRLR LRU FAIL',
+        descriptor=(
+            'The non destructive RAM test detected a failure in the internal RAM of the 8097 '
+            'microprocessor.'
+        ),
+        cmm_page=46,
+        reference_name='RAM_REG_FAIL',
+    ),
+    FaultBit(
+        34, 'RAM_EXT_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='CONTRLR LRU FAIL',
+        descriptor=(
+            'The non destructive RAM test detected a failure in the external CTR RAM.'
+        ),
+        cmm_page=46,
+        reference_name='RAM_EXT_FAIL',
+    ),
+    FaultBit(
+        35, 'PROM_CRC_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='CONTRLR LRU FAIL',
+        descriptor=(
+            'The Cyclic Redundancy Check detected a failure of the CTR EPROMS. It has to be '
+            'assumed, that the software contained in the PROMs is not in an operative condition.'
+        ),
+        cmm_page=46,
+        reference_name='PROM_CRC-FAIL',
+    ),
+    FaultBit(
+        36, 'ALU_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='CONTRLR LRU FAIL',
+        descriptor=(
+            'The arithmetic test of the microprocessor detected a failure.'
+        ),
+        cmm_page=46,
+        reference_name='ALU_FAIL',
+    ),
+    FaultBit(
+        37, 'V15_POS_NEG_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='CONTRLR LRU FAIL',
+        descriptor=(
+            'The +15 V DC and -15 V DC from the power supply are continuously monitored at an '
+            'analog input port of the A/D converter. The fail flag is set if the difference of both '
+            'power lines is out of range required to drive the ARINC transmitters.'
+        ),
+        cmm_page=46,
+        reference_name='15V_POS_NEG_FAIL',
+    ),
+    FaultBit(
+        38, 'ADC_5V_REF_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='CONTRLR LRU FAIL',
+        descriptor=(
+            'The A/D converter is continuously tested against +5 V DC via an analog input. If the '
+            'measured value differs more than 4% from the nominal value, the fail flag is set.'
+        ),
+        cmm_page=47,
+        reference_name='ADC_5V_REF_FAIL',
+    ),
+    FaultBit(
+        39, 'RS422_XMIT_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='CONTRLR LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if no RS422 transmitter interrupt activity is detected.'
+        ),
+        cmm_page=47,
+        reference_name='RS422_XMIT_FAIL',
+    ),
+    FaultBit(
+        40, 'RS422_WA_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='CONTRLR LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if the wraparound of the CTR RS422 interface fails.'
+        ),
+        cmm_page=47,
+        reference_name='RS422_WA_FAIL',
+    ),
+    FaultBit(
+        41, 'ARINC_XMIT_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='CONTRLR LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if no ARINC transmitter interrupt activity is detected.'
+        ),
+        cmm_page=47,
+        reference_name='ARINC_XMIT_FAIL',
+    ),
+    FaultBit(
+        42, 'WATCHDOG_EXPIRED_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='CONTRLR LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if the CTR watchdog is not served correctly by the '
+            'software. May be caused by a software anomaly.'
+        ),
+        cmm_page=47,
+        reference_name='WATCHDOG_EXPIRED',
+    ),
+    FaultBit(
+        43, 'ARINC_WA1_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='CONTRLR LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if the ARINC wraparound of ARINC transmitter circuit 1, MUX '
+            '1 and ARINC receiver 1 fails.'
+        ),
+        cmm_page=47,
+        reference_name='ARINC_WA1_FAIL',
+    ),
+    FaultBit(
+        44, 'ARINC_WA2_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='CONTRLR LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if the ARINC wraparound of ARINC transmitter circuit 2, MUX '
+            '2 and ARINC receiver 2 fails.'
+        ),
+        cmm_page=48,
+        reference_name='ARINC_WA2_FAIL',
+    ),
+    FaultBit(
+        45, 'ARINC_WA3_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='CONTRLR LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if the ARINC wraparound of ARINC transmitter circuit 3, MUX '
+            '3 and ARINC receiver 3 fails.'
+        ),
+        cmm_page=48,
+        reference_name='ARINC_W3_FAIL',
+    ),
+    FaultBit(
+        46, 'NVM_WR_RD_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='CONTRLR LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if a write to the NVM cannot be performed correctly.'
+        ),
+        cmm_page=48,
+        reference_name='NVM_WR_RD_FAIL',
+    ),
+    FaultBit(
+        47, 'NVM_RANGE_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='CONTRLR LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if the data read out of the NVM flight buffer or NVM power '
+            'down buffer after POR or Pilot Reset is not within the valid range.'
+        ),
+        cmm_page=48,
+        reference_name='NVM_RANGE_FAIL',
+    ),
+    FaultBit(
+        48, 'SENSOR_EEPROM_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='CONTRLR LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if the checksum test of the sensor EEPROM data fails.'
+        ),
+        cmm_page=49,
+        reference_name='SENSOR_EEPROM_FAIL',
+    ),
+    FaultBit(
+        49, 'PC_SENSOR_RANGE_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='CONTRLR LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if the sensed pressure of the sensor is above 26 psi or '
+            'below 2.471 psi.'
+        ),
+        cmm_page=49,
+        reference_name='PC_SENSOR_RANGE_FAIL',
+    ),
+    FaultBit(
+        50, 'PRES_REFRESH_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='CONTRLR LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if the pressure value is not refreshed by the pressure '
+            'sensor within the valid time frame.'
+        ),
+        cmm_page=49,
+        reference_name='PRES_REFRESH_FAIL',
+    ),
+    FaultBit(
+        51, 'TEMP_REFRESH_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='CONTRLR LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if the temperature value is not refreshed by the '
+            'temperature sensor within the valid time frame.'
+        ),
+        cmm_page=49,
+        reference_name='TEMP_REFRESH_FAIL',
+    ),
+    FaultBit(
+        52, 'PC_VS_PA_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='N',
+        fault_indication='CONTRLR LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if the PC differs from the PA value more than 0.2 psi '
+            'absolute. This test is part of the IBIT and the SCBIT only.'
+        ),
+        cmm_page=49,
+        reference_name='PC_VS_PA_FAIL',
+    ),
+    FaultBit(
+        53, 'NOT USED',
+        cmm_page=49,
+        reference_name='UNUSED',
+    ),
+    FaultBit(
+        54, 'NOT USED',
+        cmm_page=49,
+        reference_name='UNUSED',
+    ),
+    FaultBit(
+        55, 'NOT USED',
+        cmm_page=49,
+        reference_name='UNUSED',
+    ),
+    FaultBit(
+        56, 'HSS_OPEN_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='CONTRLR LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if the DRIVE_ENABLE_CTR_PNL_OUT line is powered while the '
+            'HSS should be open.'
+        ),
+        cmm_page=50,
+        reference_name='HSS_OPEN_FAIL',
+    ),
+    FaultBit(
+        57, 'HSS_SHORT_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='CONTRLR LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if the DRIVE_ENABLE_CTR_PNL_OUT line is unpowered while the '
+            'HSS should be closed.'
+        ),
+        cmm_page=50,
+        reference_name='HSS_SHORT_FAIL',
+    ),
+    FaultBit(
+        58, 'NOT USED',
+        cmm_page=50,
+        reference_name='UNUSED',
+    ),
+    FaultBit(
+        59, 'OSD_WA_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='CONTRLR LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if the wraparound of the OSD_CTR_OUT line fails.'
+        ),
+        cmm_page=50,
+        reference_name='OSD_WA_FAIL',
+    ),
+    FaultBit(
+        60, 'AUTO_UNDER_TEST_WA_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='CONTRLR LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if the wraparound of the AUTO_UNDER_TEST_CTR_CTR_OUT line '
+            'fails.'
+        ),
+        cmm_page=50,
+        reference_name='AUTO_UNDER_TEST_WA_FAIL',
+    ),
+    FaultBit(
+        61, 'AUTO_OK_WA_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='CONTRLR LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if the wraparound of the series discrete output '
+            'AUTO_FAIL_CTR_OUT failed.'
+        ),
+        cmm_page=50,
+        reference_name='AUTO_FAIL_CTR_OUT_WA_FAIL',
+    ),
+    FaultBit(
+        62, 'NOT USED',
+        cmm_page=50,
+        reference_name='UNUSED',
+    ),
+    FaultBit(
+        63, 'BCM_FAIL_FG',
+        auto_fail='0',
+        nvm='1',
+        recoverable='R',
+        fault_indication='no display possible',
+        descriptor=(
+            'This fail flag will be set if the self test of the BCM fails.'
+        ),
+        cmm_page=50,
+        reference_name='BCM_FAIL',
+    ),
+    FaultBit(
+        64, 'OFV_RAM_REG_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='OFV LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if the non destructive test of the OFV microprocessor RAM '
+            'fails during CBIT.'
+        ),
+        cmm_page=51,
+        reference_name='OFV_RAM_REG_FAIL',
+    ),
+    FaultBit(
+        65, 'OFV_RAM_EXT_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='OFV LRU FAIL',
+        descriptor=(
+            'This fail flag is set if the non destructive test of the OFV microprocessor external '
+            'RAM fails during CBIT.'
+        ),
+        cmm_page=51,
+        reference_name='OFV_RAM_EXT_FAIL',
+    ),
+    FaultBit(
+        66, 'OFV_INI_RAM_REG_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='This fail flag is set if the non destructive test of the OFV',
+        descriptor=(
+            'microprocessor RAM fails during PUBIT.'
+        ),
+        cmm_page=51,
+        reference_name='OFV_INI_RAM_REG_FAIL',
+    ),
+    FaultBit(
+        67, 'OFV_INI_RAM_EXT_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='This fail flag is set if the non destructive test of the OFV',
+        descriptor=(
+            'microprocessor external RAM fails during PUBIT.'
+        ),
+        cmm_page=51,
+        reference_name='OFV_INI_RAM_EXT_FAIL',
+    ),
+    FaultBit(
+        68, 'OFV_MOT_CUR_LIMIT_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='OFV LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if the current limitation for the automatic motor fails.'
+        ),
+        cmm_page=51,
+        reference_name='OFV_MOT_CUR_LIMIT_FAIL',
+    ),
+    FaultBit(
+        69, 'OFV_PWR_EXT_AD_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='OFV LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if the +15 V DC of the ELACT feed into an A/D converter '
+            'input is not in range.'
+        ),
+        cmm_page=51,
+        reference_name='OFV_POW_EXT_AD_FAIL',
+    ),
+    FaultBit(
+        70, 'NOT USED',
+        cmm_page=51,
+        reference_name='UNUSED',
+    ),
+    FaultBit(
+        71, 'NOT USED',
+        cmm_page=51,
+        reference_name='UNUSED',
+    ),
+    FaultBit(
+        72, 'OFV_PROM_CRC_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='OFV LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if the cyclic redundancy check of the ELACT EPROMS fails.'
+        ),
+        cmm_page=52,
+        reference_name='OFV_PROM_CRC_FAIL',
+    ),
+    FaultBit(
+        73, 'OFV_RS422_WA_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='OFV LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if the wraparound of the ELACT RS422 interface fails.'
+        ),
+        cmm_page=52,
+        reference_name='OFV_RS422_WA_FAIL',
+    ),
+    FaultBit(
+        74, 'OFV_RS422_CTR_TO_OFV_ACTIVITY_FAIL',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='OFV OR WIRING',
+        descriptor=(
+            'This fail flag will be set if the ELACT does not detect RS422 activity of the CTR and '
+            'the CTR RS422 wraparound is passed.'
+        ),
+        cmm_page=52,
+        reference_name='OFV_RS422_CTR_TO_OFV_ACTIV_FAIL',
+    ),
+    FaultBit(
+        75, 'OFV_RS422_XMIT_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='OFV LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if no ELACT transmitter interrupt activity is detected by '
+            'the ELACT.'
+        ),
+        cmm_page=52,
+        reference_name='OFV_RS422_XMIT_FAIL',
+    ),
+    FaultBit(
+        76, 'OFV_DISC_WA_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='OFV LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if the wraparound of the discrete input MUX in the ELACT '
+            'fails.'
+        ),
+        cmm_page=52,
+        reference_name='OFV_DISC_WA_FAIL',
+    ),
+    FaultBit(
+        77, 'OFV_RVT_EXC_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='OFV LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if the ELACT internal discrete wraparound fails.'
+        ),
+        cmm_page=52,
+        reference_name='OFV_RVT_EXC_FAIL',
+    ),
+    FaultBit(
+        78, 'OFV_RVT_POS_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='OFV LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if the RVT reference voltage is detected out of range.'
+        ),
+        cmm_page=52,
+        reference_name='OFV_RVT_POS_FAIL',
+    ),
+    FaultBit(
+        79, 'OFV_B737_ID_STATUS',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='OFV LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if the internal pin programming is not set to B737 mode.'
+        ),
+        cmm_page=53,
+        reference_name='OFV_B737_ID_FAIL',
+    ),
+    FaultBit(
+        80, 'OFV_AD_TIME_FRAME_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='OFV LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if the A/D conversion is not performed within the defined '
+            'time frame.'
+        ),
+        cmm_page=54,
+        reference_name='OFV_AD_TIME_FRAME_FAIL',
+    ),
+    FaultBit(
+        81, 'OFV_LOOP_CLOSURE_STATUS',
+        auto_fail='0',
+        nvm='0',
+        recoverable='A',
+        fault_indication='No indication, may lead to fault code 007',
+        descriptor=(
+            'This status fail flag will be set on OFV fault word by the ELACT and evaluated by the '
+            'CTR. If the additional conditions are fulfilled the CTR set as result fail flag 007 on '
+            'the system fault word.'
+        ),
+        cmm_page=54,
+    ),
+    FaultBit(
+        82, 'NOT USED',
+        cmm_page=54,
+        reference_name='UNUSED',
+    ),
+    FaultBit(
+        83, 'OFV_ALU_FAIL',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='OFV LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if the arithmetic operation tests of the ALU of the ELACT '
+            'fail.'
+        ),
+        cmm_page=54,
+    ),
+    FaultBit(
+        84, 'NOT USED',
+        cmm_page=54,
+        reference_name='UNUSED',
+    ),
+    FaultBit(
+        85, 'NOT USED',
+        cmm_page=54,
+        reference_name='UNUSED',
+    ),
+    FaultBit(
+        86, 'NOT USED',
+        cmm_page=54,
+        reference_name='UNUSED',
+    ),
+    FaultBit(
+        87, 'OFV_15V_NEG_ADC_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='OFV LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if the -15 V DC feed into the A/D converter is out of '
+            'range. May be caused by a power supply or A/D converter fail.'
+        ),
+        cmm_page=54,
+        reference_name='OFV_15V_NEG_ADC_FAIL',
+    ),
+    FaultBit(
+        88, 'OFV_HALL_EFF_SEN_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='OFV LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if the hall sensor signals are detected in incorrect '
+            'combinations.'
+        ),
+        cmm_page=55,
+        reference_name='OFV_HALL_EFFECT_SENSOR_FAIL',
+    ),
+    FaultBit(
+        89, 'NOT USED',
+        cmm_page=55,
+        reference_name='UNUSED',
+    ),
+    FaultBit(
+        90, 'OFV_CAB_PRESS_SWITCH_STATUS',
+        auto_fail='0',
+        nvm='1',
+        recoverable='A',
+        fault_indication='CAB_PRES_SW_ACTIV',
+        descriptor=(
+            'This status fail flag will be set as long as the cabin pressure switch of the ELACT is '
+            'active. Under certain conditions when FC90 is active, the Auto Fail bit can also '
+            'change to 1. This behavior can only be noticed when the NVM is downloaded and is not '
+            'observable for the flight crew or through the BCM functions. There is no functional '
+            'impact and the behavior does not point to a malfunction of the system. No Auto Channel '
+            'transfer will occur.'
+        ),
+        cmm_page=55,
+    ),
+    FaultBit(
+        91, 'OFV_RS422_CTR_TO_OFV_MESSAGE_FAIL',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='CONTRLR LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if the ELACT receives invalid P messages from the CTR for '
+            'longer than 3 seconds.'
+        ),
+        cmm_page=55,
+    ),
+    FaultBit(
+        92, 'OFV_ELACT_PROG_PIN_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='OFV LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if the ELACT internal program pin setting shows a forbidden '
+            'combination.'
+        ),
+        cmm_page=55,
+        reference_name='OFV_ELACT_PROG_PIN_FAIL',
+    ),
+    FaultBit(
+        93, 'NOT USED',
+        cmm_page=55,
+        reference_name='UNUSED',
+    ),
+    FaultBit(
+        94, 'NOT USED',
+        cmm_page=55,
+        reference_name='UNUSED',
+    ),
+    FaultBit(
+        95, 'NOT USED',
+        cmm_page=55,
+        reference_name='UNUSED',
+    ),
+    FaultBit(
+        96, 'PNL_PROM_CRC_FAIL_FG',
+        auto_fail='0',
+        nvm='1',
+        recoverable='R',
+        fault_indication='SEL PNL LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if the cyclic redundancy check of the PNL PROMs fails.'
+        ),
+        cmm_page=56,
+        reference_name='PNL_PROM_CRC_FAIL',
+    ),
+    FaultBit(
+        97, 'NOT USED',
+        cmm_page=56,
+        reference_name='UNUSED',
+    ),
+    FaultBit(
+        98, 'PNL_NON_DESTRUCTIVE_FAIL_FG',
+        auto_fail='0',
+        nvm='1',
+        recoverable='R',
+        fault_indication='SEL PNL LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if the test of the PNL RAM fails.'
+        ),
+        cmm_page=56,
+        reference_name='PNL_NON_DESTRUCTIVE_RAM_FAIL',
+    ),
+    FaultBit(
+        99, 'PNL_ALU_FAIL_FG',
+        auto_fail='0',
+        nvm='1',
+        recoverable='R',
+        fault_indication='SEL PNL LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if the PNL microcontroller arithmetic operation test fails.'
+        ),
+        cmm_page=56,
+        reference_name='PNL_ALU_FAIL',
+    ),
+    FaultBit(
+        100, 'PNL_ARINC_WA1_FAIL_FG',
+        auto_fail='0',
+        nvm='1',
+        recoverable='R',
+        fault_indication='SEL PNL LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if the PNL detects a wraparound fail of the ARINC interface '
+            'to the master CTR.'
+        ),
+        cmm_page=56,
+        reference_name='PNL_ARINC_WA1_FAIL',
+    ),
+    FaultBit(
+        101, 'PNL_ARINC_WA2_FAIL_FG',
+        auto_fail='0',
+        nvm='1',
+        recoverable='R',
+        fault_indication='SEL PNL LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if the PNL detects a wraparound fail of the ARINC interface '
+            'to the slave CTR.'
+        ),
+        cmm_page=56,
+        reference_name='PNL_ARINC_WA2_FAIL',
+    ),
+    FaultBit(
+        102, 'PNL_A/D_CONVERTER_FAIL_FG',
+        auto_fail='0',
+        nvm='1',
+        recoverable='R',
+        fault_indication='SEL PNL LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if the PNL A/D converter test fails.'
+        ),
+        cmm_page=56,
+        reference_name='PNL_A/D_CONVERTER_FAIL',
+    ),
+    FaultBit(
+        103, 'PNL_AUTO_FAIL_WA_FAIL_FG',
+        auto_fail='0',
+        nvm='1',
+        recoverable='R',
+        fault_indication='SEL PNL LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if the wraparound of the discrete output AUTO_FAIL_PNL_OUT '
+            'fails.'
+        ),
+        cmm_page=57,
+        reference_name='PNL_AUTO_FAIL_WA_FAIL',
+    ),
+    FaultBit(
+        104, 'PNL_UNANTICIPATED_PORING_FAIL_FG',
+        auto_fail='0',
+        nvm='1',
+        recoverable='R',
+        fault_indication='SEL PNL LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if the PNL resets 3 times without detected reason within 6 '
+            'minutes.'
+        ),
+        cmm_page=57,
+        reference_name='PNL_UNANTICIPATED_PORING',
+    ),
+    FaultBit(
+        105, 'PNL_WATCHDOG_TIMER_FAIL_FG',
+        auto_fail='0',
+        nvm='1',
+        recoverable='R',
+        fault_indication='SEL PNL LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if the PNL watchdog timer expires.'
+        ),
+        cmm_page=57,
+        reference_name='PNL_WATCHDOG_TIMER_FAIL',
+    ),
+    FaultBit(
+        106, 'PNL_RECEIVED_DISCRETE_INPUT_FAIL_FG',
+        auto_fail='0',
+        nvm='1',
+        recoverable='R',
+        fault_indication='SEL PNL LRU FAIL',
+        descriptor=(
+            'This fail flag will be set if a discrete input value is out of range.'
+        ),
+        cmm_page=57,
+        reference_name='PNL-RECEIVED_DISCRETE_INPUT_FAIL',
+    ),
+    FaultBit(
+        107, 'PNL_SEVER_VOLTAGE_DROP_HIGH_FAIL',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='SEL PNL LRU FAIL',
+        descriptor=(
+            'This fail flag is set whenever the CTR state is SB and the OFV state is OP while the '
+            'CTRs opmode is not MANUAL and the PNL indicates a high voltage drop from either sever '
+            'switch relay.'
+        ),
+        cmm_page=57,
+        reference_name='PNL_SEVER_CLOSED_FAIL',
+    ),
+    FaultBit(
+        108, 'COMM_CTR1_PNL_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='A',
+        fault_indication='SYSTEM WIRING; Detail: CPC-PNL WIRING',
+        descriptor=(
+            'This fail flag will be set by the CTR if the PNL detects no ARINC activity or receives '
+            'faulty data from the CTR1 and no wraparound failure of the PNL and the CTR ARINC '
+            'interface is detected.'
+        ),
+        cmm_page=57,
+        reference_name='COMM_CTR1_PNL_FAIL',
+    ),
+    FaultBit(
+        109, 'DRIVE_ENABLE_DISAGREE_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='R',
+        fault_indication='DRV ENBL ERROR',
+        descriptor=(
+            'This fail flag will be set if the PNL detects that both DRIVE_ENABLE_CTR_PNL_IN are '
+            'operational at the same time or one auto channel is in fail and the '
+            'DRIVE_ENABLE_CTR_PNL_IN of this channel is powered at the same time.'
+        ),
+        cmm_page=58,
+        reference_name='DRV_ENBL_DISAGREE_STATUS',
+    ),
+    FaultBit(
+        110, 'COMM_CTR2_PNL_FAIL_FG',
+        auto_fail='1',
+        nvm='1',
+        recoverable='A',
+        fault_indication='SYSTEM WIRING; Detail: CPC-PNL WIRING',
+        descriptor=(
+            'This fail flag will be set by the CTR if the PNL detects no ARINC activity or receives '
+            'faulty data from the CTR2 and no wraparound failure of the PNL and the CTR ARINC '
+            'interface is detected.'
+        ),
+        cmm_page=58,
+        reference_name='COMM_CTR2_PNL_FAIL',
+    ),
+    FaultBit(
+        111, 'PNL_FAIL_FG',
+        auto_fail='0',
+        nvm='1',
+        recoverable='R',
+        fault_indication='No indication',
+        descriptor=(
+            'This fail flag will be set if a PNL internal fail (fail flags 096 to 106) is detected.'
+        ),
+        cmm_page=58,
+        reference_name='PNL_FAIL',
+    ),
+]
+
+FAULT_CODE_NAMES = tuple(fault.name for fault in Faults)
+STATUS_CODES = frozenset(fault.code for fault in Faults if "STATUS" in fault.name)
+
+
+def describe_fault_code(code: int) -> str:
+    if not 0 <= code < len(Faults):
+        return "Not listed in the BIT fault matrix"
+    return Faults[code].name
+
+
+def ConfigureFaultBits():
+    """Compatibility entry point for callers from the master branch."""
+    return Faults

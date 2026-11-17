@@ -8,13 +8,13 @@ faulthandler.enable()
 from PyQt5 import QtWidgets, QtCore
 from PyQt5.QtCore import QThread, pyqtSlot, pyqtSignal, QTimer
 from PyQt5.QtWidgets import QRadioButton, QComboBox, QTableWidgetItem, QDialog, QVBoxLayout, QMessageBox, QFileDialog, QPlainTextEdit
-from PyQt5.QtGui import QColor
+from PyQt5.QtGui import QColor, QBrush
 from _ui_main_window import Ui_MainWindow
 import os
 import json
 from arinc_handler import ArincWorker
 from RS_handler import RsWorker, FaultsBuffer
-from fault_codes_21933 import FAULT_CODE_NAMES, STATUS_CODES, describe_fault_code
+import BITE
 from openpyxl import Workbook
 import uut_encode
 
@@ -29,15 +29,16 @@ def int16_from_hex(value: str) -> int:
     return x
 
 FAULT_BUFFER_HEADERS = (
-    'Буфер', 'Адрес', 'Код', 'Наименование по СММ 21933',
-    'Повторения (байт)', 'Счётчик этапов полёта', 'Счётчик времени, с',
-    'DISC_INFO1', 'DISC_INFO2', 'Наружное давление, hPa',
-    'Давление кабины, hPa', 'Скорость наружного давления, SLFPM',
-    'Скорость давления кабины, SLFPM', 'Эшелон, FL',
-    'Высота посадки, ft', 'Положение OFV, °',
+    'Buffer', 'Address', 'Fault Code of failure caused the entry', 'Fault Flag Name',
+    'Intermittent counter', 'BBJ_SEL_IN setting of DISC_INFO3',
+    'Flight leg counter', 'Elapsed time counters (s)',
+    'DISC_INFO1', 'DISC_INFO2', 'Ambient pressure (hPa)',
+    'Cabin pressure (hPa)', 'Ambient pressure rate (SLFpm)',
+    'Cabin pressure rate (SLFpm)', 'Cruise flight level (FL)',
+    'Landing field elevation (ft)', 'OFV position (deg)',
     'DCPCS_FAULT_WORD', 'EXT_SYS_FAULT_WORD', 'CTR_FAULT_WORD1',
     'CTR_FAULT_WORD2', 'OFV_FAULT_WORD1', 'OFV_FAULT_WORD2',
-    'PNL_FAULT_WORD1', 'PREF, hPa', 'Команда OFV, °',
+    'PNL_FAULT_WORD1', 'PREF (hPa)', 'OFV Command BR (deg)',
 )
 
 
@@ -46,8 +47,9 @@ def fault_buffer_row(index, buffer):
         index,
         f'{RsWorker.FAULT_MEMORY_START + index * FaultsBuffer.SIZE * 2:04X}H',
         buffer.fault_code,
-        describe_fault_code(buffer.fault_code),
+        BITE.describe_fault_code(buffer.fault_code),
         buffer.intermittent_count,
+        int(buffer.bbj_sel_in),
         buffer.flight_leg_counter,
         buffer.elapsed_time_seconds,
         f'{buffer.disc_info1:06X}',
@@ -74,13 +76,13 @@ def fault_buffer_row(index, buffer):
 def build_nvm_workbook(raw_buffs):
     book = Workbook()
     decoded = book.active
-    decoded.title = 'Буферы 21933'
+    decoded.title = 'Fault buffers 21933'
     decoded.append(FAULT_BUFFER_HEADERS)
     for index, offset in enumerate(range(0, len(raw_buffs), FaultsBuffer.SIZE)):
         decoded.append(fault_buffer_row(index, FaultsBuffer(raw_buffs[offset:offset + FaultsBuffer.SIZE])))
 
     sheet = book.create_sheet('NVM raw')
-    sheet.append(['Адрес', 'Байт', 'Буфер', 'Смещение'])
+    sheet.append(['Address', 'Byte', 'Buffer', 'Offset'])
     for index, value in enumerate(raw_buffs):
         address = RsWorker.FAULT_MEMORY_START + index * 2
         sheet.append([
@@ -185,9 +187,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.arinc_handler.sig_353.connect(self.slot_353_word)
         self.arinc_handler.sig_163.connect(self.slot_163_word)
         self.arinc_handler.sig_057.connect(self.slot_057_word)
+        self.ui.tableWidget.cellDoubleClicked.connect(self.show_row_info)
         self.ui.tableWidget.setColumnCount(4)
-        self.ui.tableWidget.setHorizontalHeaderLabels(['Код', 'Наименование 21933', 'Состояние', 'Примечание'])
-        self.ui.tableWidget.setRowCount(len(FAULT_CODE_NAMES))
+        self.ui.tableWidget.setHorizontalHeaderLabels(
+            ['Fault Code', 'Name', 'Auto Fail', 'Fault Indication']
+        )
+        self.ui.tableWidget.setRowCount(len(BITE.Faults))
         self.ui.tableWidget.setWordWrap(True)
         self.ui.tableWidget.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
 
@@ -196,18 +201,22 @@ class MainWindow(QtWidgets.QMainWindow):
         current_font.setBold(True)
         self.ui.tableWidget.setFont(current_font)
 
-        for row, name in enumerate(FAULT_CODE_NAMES):
-            note = 'Статус, не отказ' if row in STATUS_CODES else ''
-            if name == 'NOT USED':
-                note = 'Не используется'
-            elif name == 'RESERVED':
-                note = 'Зарезервировано'
-            for col, value in enumerate([row, name, 'Нет данных', note]):
+        for row, fault in enumerate(BITE.Faults):
+            for col, value in enumerate(
+                [
+                    fault.code,
+                    fault.name,
+                    fault.auto_fail if fault.name != 'NOT USED' else '',
+                    fault.fault_indication if fault.name != 'NOT USED' else '',
+                ]
+            ):
                 item = QTableWidgetItem(str(value))
+                item.setBackground(QColor(255, 255, 255))
                 self.ui.tableWidget.setItem(row, col, item)
 
-        self.ui.tableWidget.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeToContents)
+        self.ui.tableWidget.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.Stretch)
         self.ui.tableWidget.resizeRowsToContents()
+        QTimer.singleShot(0, self.ui.tableWidget.resizeRowsToContents)
         self.ui.tableWidget.verticalHeader().setVisible(False)
         self.ui.tableWidget.setToolTip('Текущее состояние BITE по RS-422')
         self.ui.tabWidget.setTabText(self.ui.tabWidget.indexOf(self.ui.tab), 'UUT BITE 21933')
@@ -452,20 +461,49 @@ class MainWindow(QtWidgets.QMainWindow):
     @pyqtSlot(object)
     def show_bite_matrix(self, matrix):
         self.ui.tableWidget.setToolTip('Текущее состояние BITE по RS-422')
-        for row in range(len(FAULT_CODE_NAMES)):
+        for row in range(len(BITE.Faults)):
             active = bool(matrix & (1 << row))
             color = QColor(255, 165, 0) if active else QColor(255, 255, 255)
-            self.ui.tableWidget.item(row, 2).setText('Активен' if active else 'Нет')
             for column in range(self.ui.tableWidget.columnCount()):
-                self.ui.tableWidget.item(row, column).setBackground(color)
+                self.ui.tableWidget.item(row, column).setBackground(QBrush(color))
+        self.ui.tableWidget.viewport().update()
 
     @pyqtSlot(str)
     def show_bite_unavailable(self, reason):
-        for row in range(len(FAULT_CODE_NAMES)):
-            self.ui.tableWidget.item(row, 2).setText('Нет данных')
+        for row in range(len(BITE.Faults)):
             for column in range(self.ui.tableWidget.columnCount()):
-                self.ui.tableWidget.item(row, column).setBackground(QColor(240, 240, 240))
+                self.ui.tableWidget.item(row, column).setBackground(QBrush(QColor(240, 240, 240)))
         self.ui.tableWidget.setToolTip(reason)
+
+    @pyqtSlot(int, int)
+    def show_row_info(self, row, column):
+        if not 0 <= row < len(BITE.Faults):
+            return
+        fault = BITE.Faults[row]
+        details = [
+            f'Fault Code: {fault.code:03d}',
+            f'Name: {fault.name}',
+            f'Auto Fail: {fault.auto_fail or "not specified"}',
+            f'NVM: {fault.nvm or "not specified"}',
+            f'Recoverable: {fault.recoverable or "not specified"}',
+        ]
+        if fault.reference_name and fault.reference_name != fault.name:
+            details.append(f'Table 5 Name: {fault.reference_name}')
+        if fault.fault_indication:
+            details.append(f'Fault Indication: {fault.fault_indication}')
+        if fault.descriptor:
+            details.extend(['', fault.descriptor])
+        if fault.cmm_page is not None:
+            details.extend(['', f'CMM 21-33-20, Table 5, page {fault.cmm_page}'])
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f'Info {fault.name}')
+        layout = QVBoxLayout(dialog)
+        text = QPlainTextEdit(dialog)
+        text.setReadOnly(True)
+        text.setPlainText('\n'.join(details))
+        layout.addWidget(text)
+        dialog.resize(700, 400)
+        dialog.exec_()
 
     @pyqtSlot(int, int)
     def number_sys_changed(self, row, index):

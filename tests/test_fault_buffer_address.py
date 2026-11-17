@@ -2,7 +2,7 @@ import unittest
 
 from PyQt5.QtCore import QCoreApplication
 
-from RS_handler import RsWorker
+from RS_handler import FaultsBuffer, RsWorker
 from main_window import build_nvm_workbook
 
 
@@ -77,13 +77,26 @@ class FaultBufferAddressTests(unittest.TestCase):
         self.assertIn('21933', errors[0])
 
     def test_nvm_export_uses_physical_addresses(self):
-        book = build_nvm_workbook(['FF', '0E', '2F'])
-        sheet = book.active
+        book = build_nvm_workbook(['FF', '0E', '2F'] + ['00'] * 45)
+        sheet = book['NVM raw']
 
         self.assertEqual(sheet['A2'].value, '1000H')
         self.assertEqual(sheet['B3'].value, '0E')
         self.assertEqual(sheet['A4'].value, '1004H')
         self.assertEqual(sheet['C2'].value, 0)
+
+    def test_shared_byte_fields_and_flight_leg(self):
+        raw = ['00', 'AF', '01', '02', '03', '04'] + ['00'] * 42
+        buffer = FaultsBuffer(raw)
+
+        self.assertEqual(buffer.intermittent_count, 7)
+        self.assertTrue(buffer.bbj_sel_in)
+        self.assertEqual(buffer.flight_leg_counter, 0x04030201)
+
+        row = build_nvm_workbook(raw).active
+        self.assertEqual(row['E2'].value, 7)
+        self.assertEqual(row['F2'].value, 1)
+        self.assertEqual(row['G2'].value, 0x04030201)
 
 
 if __name__ == '__main__':

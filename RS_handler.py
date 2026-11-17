@@ -31,8 +31,8 @@ class FaultsBuffer():
             return int.from_bytes(raw[offset:offset + 2], byteorder='little', signed=True)
 
         self.fault_code = raw[0]
-        self.intermittent_count = raw[1]
-        # СММ не указывает, какой байт записи содержит DISC_INFO3.
+        self.intermittent_count = raw[1] & 0x07
+        self.bbj_sel_in = bool(raw[1] & 0x08)
         self.flight_leg_counter = int.from_bytes(raw[2:6], byteorder='little', signed=False)
         self.elapsed_time_ticks = int.from_bytes(raw[6:10], byteorder='little', signed=False)
         self.elapsed_time_seconds = self.elapsed_time_ticks / 20

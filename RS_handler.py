@@ -9,7 +9,7 @@ from PyQt5.QtSerialPort import QSerialPort
 
 #################################  Utils  #######################################################
 class FaultsBuffer():
-    """48-byte NVM fault-buffer"""
+    """48-байтовая запись буфера ошибок 21933."""
 
     SIZE = 48
 
@@ -31,16 +31,15 @@ class FaultsBuffer():
             return int.from_bytes(raw[offset:offset + 2], byteorder='little', signed=True)
 
         self.fault_code = raw[0]
-        self.intermittent_count = raw[1] & 0x07
-        self.bbj_sel_in = bool(raw[1] & 0x08)
+        self.intermittent_count = raw[1]
+        # СММ не указывает, какой байт записи содержит DISC_INFO3.
         self.flight_leg_counter = int.from_bytes(raw[2:6], byteorder='little', signed=False)
         self.elapsed_time_ticks = int.from_bytes(raw[6:10], byteorder='little', signed=False)
         self.elapsed_time_seconds = self.elapsed_time_ticks / 20
         self.disc_info1 = int.from_bytes(raw[10:13], byteorder='little', signed=False)
         self.disc_info2 = int.from_bytes(raw[13:16], byteorder='little', signed=False)
 
-        # CMM scaling: binary .5 -> 10 fractional bits, binary .13 -> 2,
-        # binary .7 -> 8. Pressure values are converted from psi to hPa.
+        # Форматы binary .5/.13/.7 дают 10/2/8 дробных бит; давление переводится в гПа.
         self.ambient_pressure_hpa = round((u16(16) / 1024) * PSI_HPA, 2)
         self.cabin_pressure_hpa = round((u16(18) / 1024) * PSI_HPA, 2)
         self.ambient_pressure_rate_slfpm = s16(20) / 4
@@ -423,9 +422,12 @@ class RsWorker(QObject):
     FAULT_BUFFER_SIZE = FaultsBuffer.SIZE
     FAULT_BUFFER_DATA_END = FAULT_MEMORY_START + FAULT_BUFFER_COUNT * FAULT_BUFFER_SIZE * 2 - 2
     FAULT_BYTE_READ_ATTEMPTS = 3
+    BITE_MATRIX_SIZE = 14
 
     sig_send_consts = pyqtSignal(dict)
     sig_rw_reply = pyqtSignal(int, str)
+    sig_bite_matrix = pyqtSignal(object)
+    sig_bite_unavailable = pyqtSignal(str)
     sig_show_fbuffs = pyqtSignal(list)
     sig_progress_read_buffs = pyqtSignal(int)
     sig_error = pyqtSignal(str)
@@ -435,6 +437,12 @@ class RsWorker(QObject):
 
         self.handler = RWHandler()
         self.handler.setParent(self)
+
+        self.timer_bite = QTimer(self)
+        self.timer_bite.setInterval(1000)
+        self.timer_bite.timeout.connect(self.poll_bite_matrix)
+        self.handler.sig_timers_start.connect(self.timer_bite.start)
+        self._bite_polling = False
 
         self.raw_buffs = []
 
@@ -549,6 +557,38 @@ class RsWorker(QObject):
             )
 
         return int(parameter_address_reply, 16)
+
+    @pyqtSlot()
+    def poll_bite_matrix(self):
+        if self._fb_in_progress or self._bite_polling:
+            return
+        self._bite_polling = True
+        try:
+            parameter_address = self.find_parameter_address(
+                self.NVM_BIT_FAULT_MATRIX_LATCH_OFFSET, priority=40
+            )
+            start_reply = self.handler.read_word(parameter_address, priority=40)
+            if start_reply is None:
+                raise RuntimeError(
+                    f'Нет ответа для адреса матрицы BITE по {parameter_address:04X}H'
+                )
+            address = int(start_reply, 16)
+            if address + self.BITE_MATRIX_SIZE - 1 > 0xFFFF:
+                raise ValueError(f'Адрес матрицы BITE вне памяти: {address:04X}H')
+
+            data = []
+            for offset in range(self.BITE_MATRIX_SIZE):
+                if self._fb_in_progress:
+                    return
+                reply = self.handler.read_byte(address + offset, priority=40)
+                if reply is None:
+                    raise RuntimeError(f'Нет ответа для BITE по адресу {address + offset:04X}H')
+                data.append(int(reply, 16))
+            self.sig_bite_matrix.emit(int.from_bytes(bytes(data), byteorder='little'))
+        except Exception as exc:
+            self.sig_bite_unavailable.emit(str(exc))
+        finally:
+            self._bite_polling = False
 
     @classmethod
     def next_fault_memory_address(cls, address: int) -> int:
@@ -684,6 +724,7 @@ class RsWorker(QObject):
         
         # initialize state
         self._fb_in_progress = True
+        self.sig_bite_unavailable.emit('Чтение буферов NVM')
         self._fb_current_n = 0
         self._fb_current_byte_index = 0
         self._fb_current_address = self.FAULT_MEMORY_START

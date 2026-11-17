@@ -7,14 +7,14 @@ faulthandler.enable()
 
 from PyQt5 import QtWidgets, QtCore
 from PyQt5.QtCore import QThread, pyqtSlot, pyqtSignal, QTimer
-from PyQt5.QtWidgets import QRadioButton, QComboBox, QTableWidgetItem, QDialog, QVBoxLayout, QLabel, QMessageBox, QFileDialog
-from PyQt5.QtGui import QColor, QBrush
+from PyQt5.QtWidgets import QRadioButton, QComboBox, QTableWidgetItem, QDialog, QVBoxLayout, QMessageBox, QFileDialog, QPlainTextEdit
+from PyQt5.QtGui import QColor
 from _ui_main_window import Ui_MainWindow
 import os
 import json
 from arinc_handler import ArincWorker
-from RS_handler import RsWorker
-import BITE
+from RS_handler import RsWorker, FaultsBuffer
+from fault_codes_21933 import FAULT_CODE_NAMES, STATUS_CODES, describe_fault_code
 from openpyxl import Workbook
 import uut_encode
 
@@ -28,10 +28,58 @@ def int16_from_hex(value: str) -> int:
         x -= 0x10000
     return x
 
+FAULT_BUFFER_HEADERS = (
+    'Буфер', 'Адрес', 'Код', 'Наименование по СММ 21933',
+    'Повторения (байт)', 'Счётчик этапов полёта', 'Счётчик времени, с',
+    'DISC_INFO1', 'DISC_INFO2', 'Наружное давление, hPa',
+    'Давление кабины, hPa', 'Скорость наружного давления, SLFPM',
+    'Скорость давления кабины, SLFPM', 'Эшелон, FL',
+    'Высота посадки, ft', 'Положение OFV, °',
+    'DCPCS_FAULT_WORD', 'EXT_SYS_FAULT_WORD', 'CTR_FAULT_WORD1',
+    'CTR_FAULT_WORD2', 'OFV_FAULT_WORD1', 'OFV_FAULT_WORD2',
+    'PNL_FAULT_WORD1', 'PREF, hPa', 'Команда OFV, °',
+)
+
+
+def fault_buffer_row(index, buffer):
+    return (
+        index,
+        f'{RsWorker.FAULT_MEMORY_START + index * FaultsBuffer.SIZE * 2:04X}H',
+        buffer.fault_code,
+        describe_fault_code(buffer.fault_code),
+        buffer.intermittent_count,
+        buffer.flight_leg_counter,
+        buffer.elapsed_time_seconds,
+        f'{buffer.disc_info1:06X}',
+        f'{buffer.disc_info2:06X}',
+        buffer.ambient_pressure_hpa,
+        buffer.cabin_pressure_hpa,
+        buffer.ambient_pressure_rate_slfpm,
+        buffer.cabin_pressure_rate_slfpm,
+        buffer.cruise_flight_level,
+        buffer.landing_field_elevation_ft,
+        buffer.ofv_position_deg,
+        f'{buffer.dcpcs_fault_word:04X}',
+        f'{buffer.ext_sys_fault_word:04X}',
+        f'{buffer.ctr_fault_word1:04X}',
+        f'{buffer.ctr_fault_word2:04X}',
+        f'{buffer.ofv_fault_word1:04X}',
+        f'{buffer.ofv_fault_word2:04X}',
+        f'{buffer.pnl_fault_word1:04X}',
+        buffer.pref_hpa,
+        buffer.ofv_command_br_deg,
+    )
+
+
 def build_nvm_workbook(raw_buffs):
     book = Workbook()
-    sheet = book.active
-    sheet.title = 'NVM 21933'
+    decoded = book.active
+    decoded.title = 'Буферы 21933'
+    decoded.append(FAULT_BUFFER_HEADERS)
+    for index, offset in enumerate(range(0, len(raw_buffs), FaultsBuffer.SIZE)):
+        decoded.append(fault_buffer_row(index, FaultsBuffer(raw_buffs[offset:offset + FaultsBuffer.SIZE])))
+
+    sheet = book.create_sheet('NVM raw')
     sheet.append(['Адрес', 'Байт', 'Буфер', 'Смещение'])
     for index, value in enumerate(raw_buffs):
         address = RsWorker.FAULT_MEMORY_START + index * 2
@@ -61,6 +109,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.delta = None
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
+        self.fault_buffers = []
 
         # Get com-ports names
         with open('ports.json', 'r', encoding='utf-8') as f:
@@ -89,6 +138,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.ui.wButton.clicked.connect(self.on_wButton_clicked)
         self.sig_w_nvram.connect(self.rs_handler.slot_write)
         self.rs_handler.sig_rw_reply.connect(self.slot_rw_reply)
+        self.rs_handler.sig_bite_matrix.connect(self.show_bite_matrix)
+        self.rs_handler.sig_bite_unavailable.connect(self.show_bite_unavailable)
 
         self.rs_handler.handler.sig_normal_resp.connect(self.slot_show_commanded_pos)
         self.ui.readConstsButton.clicked.connect(self.rs_handler.slot_get_consts)
@@ -103,6 +154,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # Faults Buffers
         self.ui.readFBuffersButton.clicked.connect(self.rs_handler.read_fbuffs)
         self.rs_handler.sig_show_fbuffs.connect(self.show_fbuffs)
+        self.ui.tableWidget_FBuffers.cellDoubleClicked.connect(self.show_fault_buffer_info)
 
         # uut in
         self.sig_change_uut_in_words.connect(self.arinc_handler.slot_change_uut_word)
@@ -133,21 +185,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.arinc_handler.sig_353.connect(self.slot_353_word)
         self.arinc_handler.sig_163.connect(self.slot_163_word)
         self.arinc_handler.sig_057.connect(self.slot_057_word)
-        self.arinc_handler.sig_104.connect(self.slot_104_word)
-        self.arinc_handler.sig_105.connect(self.slot_105_word)
-        self.arinc_handler.sig_106.connect(self.slot_106_word)
-        self.arinc_handler.sig_107.connect(self.slot_107_word)
-        self.arinc_handler.sig_110.connect(self.slot_110_word)
-        self.arinc_handler.sig_111.connect(self.slot_111_word)
-
-        ###
-        BITE.ConfigureFaultBits()
-        # Настройка таблицы (делается один раз при инициализации)
-        self.ui.tableWidget.cellDoubleClicked.connect(self.show_row_info)
-
         self.ui.tableWidget.setColumnCount(4)
-        self.ui.tableWidget.setHorizontalHeaderLabels(["Fault Code", "Name", "Class", "Cause"])
-        self.ui.tableWidget.setRowCount(len(BITE.Faults))
+        self.ui.tableWidget.setHorizontalHeaderLabels(['Код', 'Наименование 21933', 'Состояние', 'Примечание'])
+        self.ui.tableWidget.setRowCount(len(FAULT_CODE_NAMES))
         self.ui.tableWidget.setWordWrap(True)
         self.ui.tableWidget.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
 
@@ -156,16 +196,21 @@ class MainWindow(QtWidgets.QMainWindow):
         current_font.setBold(True)
         self.ui.tableWidget.setFont(current_font)
 
-        for row, fault in enumerate(BITE.Faults):
-            for col, value in enumerate([fault.code, fault.name, fault.fault_class, fault.cause]):
+        for row, name in enumerate(FAULT_CODE_NAMES):
+            note = 'Статус, не отказ' if row in STATUS_CODES else ''
+            if name == 'NOT USED':
+                note = 'Не используется'
+            elif name == 'RESERVED':
+                note = 'Зарезервировано'
+            for col, value in enumerate([row, name, 'Нет данных', note]):
                 item = QTableWidgetItem(str(value))
-                item.setBackground(QColor(255, 255, 255))  # белый фон по умолчанию
                 self.ui.tableWidget.setItem(row, col, item)
 
-        self.ui.tableWidget.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.Stretch)
+        self.ui.tableWidget.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeToContents)
         self.ui.tableWidget.resizeRowsToContents()
         self.ui.tableWidget.verticalHeader().setVisible(False)
-        ###
+        self.ui.tableWidget.setToolTip('Текущее состояние BITE по RS-422')
+        self.ui.tabWidget.setTabText(self.ui.tabWidget.indexOf(self.ui.tab), 'UUT BITE 21933')
 
         ### Настройка таблицы констант
         self.ui.tableWidget_consts.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.Stretch)
@@ -173,7 +218,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.ui.tableWidget_consts.verticalHeader().setVisible(False)
 
         ### Настройка fbuffs
-        self.ui.tableWidget_FBuffers.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.Stretch)
+        self.ui.tableWidget_FBuffers.setColumnCount(len(FAULT_BUFFER_HEADERS))
+        self.ui.tableWidget_FBuffers.setHorizontalHeaderLabels(FAULT_BUFFER_HEADERS)
+        self.ui.tableWidget_FBuffers.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
+        self.ui.tableWidget_FBuffers.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeToContents)
         self.ui.tableWidget_FBuffers.resizeRowsToContents()
         self.ui.tableWidget_FBuffers.verticalHeader().setVisible(False)
 
@@ -304,17 +352,6 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             self.ui.lineEdit_w_reply.setText(reply)
 
-    @pyqtSlot(int, int)
-    def show_row_info(self, row, column):
-        dlg = QDialog(self)
-        dlg.setWindowTitle(f'Info {BITE.Faults[row].name}')
-        dlg.setMinimumWidth(300)
-        layout = QVBoxLayout()
-        label = QLabel(BITE.Faults[row].descriptor)
-        layout.addWidget(label)
-        dlg.setLayout(layout)
-        dlg.show()
-
     def parse_dict_to_radio(self, dict_data):
         for key, value in dict_data.items():
             attr_1, attr_0 = (key + '_1', key + '_0')
@@ -325,17 +362,6 @@ class MainWindow(QtWidgets.QMainWindow):
                     box_1.setChecked(True)
                 else:
                     box_0.setChecked(True)
-
-    def set_row_color(self,fault_bits, base):
-        for bit in range(16):
-            bit_value = (fault_bits >> bit) & 1
-            color = QColor(255, 165, 0) if bit_value else QColor(255, 255, 255)
-            for col in range(self.ui.tableWidget.columnCount()):
-                item = self.ui.tableWidget.item(bit+base, col)
-                if item:
-                    item.setBackground(QBrush(color))
-
-        self.ui.tableWidget.viewport().update()
 
     def lamps_shutdown(self):
         """Выставляет все индикаторные RadioButtons в состояние False"""
@@ -398,10 +424,48 @@ class MainWindow(QtWidgets.QMainWindow):
 
     @pyqtSlot(list)
     def show_fbuffs(self, buffs: list):
+        self.fault_buffers = buffs
         self.ui.tableWidget_FBuffers.setRowCount(len(buffs))
         for i, buffer in enumerate(buffs):
-            for j, (key, value) in enumerate(buffer.__dict__.items()):
+            for j, value in enumerate(fault_buffer_row(i, buffer)):
                 self.ui.tableWidget_FBuffers.setItem(i, j, QTableWidgetItem(str(value)))
+
+    @pyqtSlot(int, int)
+    def show_fault_buffer_info(self, row, column):
+        if not 0 <= row < len(self.fault_buffers):
+            return
+        values = fault_buffer_row(row, self.fault_buffers[row])
+        details = '\n'.join(f'{name}: {value}' for name, value in zip(FAULT_BUFFER_HEADERS, values))
+        raw = self.rs_handler.raw_buffs[row * FaultsBuffer.SIZE:(row + 1) * FaultsBuffer.SIZE]
+        if len(raw) == FaultsBuffer.SIZE:
+            details += '\n\nRAW: ' + ' '.join(raw)
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f'Буфер 21933 №{row}')
+        layout = QVBoxLayout(dialog)
+        text = QPlainTextEdit(dialog)
+        text.setReadOnly(True)
+        text.setPlainText(details)
+        layout.addWidget(text)
+        dialog.resize(700, 550)
+        dialog.exec_()
+
+    @pyqtSlot(object)
+    def show_bite_matrix(self, matrix):
+        self.ui.tableWidget.setToolTip('Текущее состояние BITE по RS-422')
+        for row in range(len(FAULT_CODE_NAMES)):
+            active = bool(matrix & (1 << row))
+            color = QColor(255, 165, 0) if active else QColor(255, 255, 255)
+            self.ui.tableWidget.item(row, 2).setText('Активен' if active else 'Нет')
+            for column in range(self.ui.tableWidget.columnCount()):
+                self.ui.tableWidget.item(row, column).setBackground(color)
+
+    @pyqtSlot(str)
+    def show_bite_unavailable(self, reason):
+        for row in range(len(FAULT_CODE_NAMES)):
+            self.ui.tableWidget.item(row, 2).setText('Нет данных')
+            for column in range(self.ui.tableWidget.columnCount()):
+                self.ui.tableWidget.item(row, column).setBackground(QColor(240, 240, 240))
+        self.ui.tableWidget.setToolTip(reason)
 
     @pyqtSlot(int, int)
     def number_sys_changed(self, row, index):
@@ -686,28 +750,4 @@ class MainWindow(QtWidgets.QMainWindow):
     @pyqtSlot(str)
     def slot_handler_error(self, error:str):
         QMessageBox.critical(self, "Error", error)
-
-    @pyqtSlot(int)
-    def slot_104_word(self, fault_bits: int):
-        self.set_row_color(fault_bits, BITE.base[104])
-
-    @pyqtSlot(int)
-    def slot_105_word(self, fault_bits: int):
-        self.set_row_color(fault_bits, BITE.base[105])
-
-    @pyqtSlot(int)
-    def slot_106_word(self, fault_bits: int):
-        self.set_row_color(fault_bits, BITE.base[106])
-
-    @pyqtSlot(int)
-    def slot_107_word(self, fault_bits: int):
-        self.set_row_color(fault_bits, BITE.base[107])
-
-    @pyqtSlot(int)
-    def slot_110_word(self, fault_bits: int):
-        self.set_row_color(fault_bits, BITE.base[110])
-
-    @pyqtSlot(int)
-    def slot_111_word(self, fault_bits: int):
-        self.set_row_color(fault_bits, BITE.base[111])
 

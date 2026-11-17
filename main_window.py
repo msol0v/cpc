@@ -15,7 +15,7 @@ import json
 from arinc_handler import ArincWorker
 from RS_handler import RsWorker
 import BITE
-from openpyxl import load_workbook
+from openpyxl import Workbook
 import uut_encode
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -27,6 +27,20 @@ def int16_from_hex(value: str) -> int:
     if x & 0x8000:
         x -= 0x10000
     return x
+
+def build_nvm_workbook(raw_buffs):
+    book = Workbook()
+    sheet = book.active
+    sheet.title = 'NVM 21933'
+    sheet.append(['Адрес', 'Байт', 'Буфер', 'Смещение'])
+    for index, value in enumerate(raw_buffs):
+        address = RsWorker.FAULT_MEMORY_START + index * 2
+        sheet.append([
+            f'{address:04X}H', value,
+            index // RsWorker.FAULT_BUFFER_SIZE,
+            index % RsWorker.FAULT_BUFFER_SIZE,
+        ])
+    return book
 
 class MainWindow(QtWidgets.QMainWindow):
 
@@ -77,7 +91,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.rs_handler.sig_rw_reply.connect(self.slot_rw_reply)
 
         self.rs_handler.handler.sig_normal_resp.connect(self.slot_show_commanded_pos)
-        self.rs_handler.signal_pc_alt.connect(self.slot_show_uut_to_operator)
         self.ui.readConstsButton.clicked.connect(self.rs_handler.slot_get_consts)
         self.rs_handler.sig_send_consts.connect(self.slot_show_consts)
         self.rs_handler.sig_progress_read_buffs.connect(self.slot_show_progress_read_buffs)
@@ -170,6 +183,13 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.ui.lcdNumber_pc.setDigitCount(8)
         self.ui.lcdNumber_alt.setDigitCount(8)
+        self.ui.lcdNumber_pc.display('----')
+        self.ui.lcdNumber_alt.display('----')
+        self.ui.readConstsButton.setEnabled(False)
+        self.ui.button_write_delta.setEnabled(False)
+        self.ui.lineEdit_delta.setEnabled(False)
+        self.ui.readConstsButton.setToolTip('Адреса констант для 21933 не подтверждены')
+        self.ui.button_write_delta.setToolTip('Адреса калибровки для 21933 не подтверждены')
 
         self.arinc_thread.start()
         self.sig_run_arinc_handler.emit()
@@ -177,56 +197,28 @@ class MainWindow(QtWidgets.QMainWindow):
 
     @pyqtSlot()
     def slot_save(self):
-        if self.ui.progressBar.value() == 100:
-            try:
-                book = load_workbook(base_dir + '/base_xlsx/moduleCPC.xlsx')
-                wl = book['com']
-                for i, rbyte in enumerate(self.rs_handler.raw_buffs, 1):
-                    wl.cell(i,1,value=rbyte)
+        expected = RsWorker.FAULT_BUFFER_COUNT * RsWorker.FAULT_BUFFER_SIZE
+        if self.ui.progressBar.value() != 100 or len(self.rs_handler.raw_buffs) != expected:
+            self.slot_handler_error('Сначала прочитайте все буферы ошибок')
+            return
 
-                for i, symb in enumerate(self.rs_handler.consts['sn']):
-                    wl.cell((i + 1313), 1, value=symb)
+        home = os.path.expanduser('~')
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            caption='Сохранение данных NVM 21933',
+            directory=f'{home}/moduleCPC_21933_NVM.xlsx',
+            filter='Excel Files (*.xlsx)',
+            options=QFileDialog.Option.DontUseNativeDialog
+        )
+        if not path:
+            return
+        if not path.lower().endswith('.xlsx'):
+            path += '.xlsx'
 
-                for i, symb in enumerate(self.rs_handler.consts['pn_hw']):
-                    wl.cell((i + 1320), 1, value=symb)
-
-
-                for i, symb in enumerate(self.rs_handler.consts['pn_sw']):
-                    wl.cell((i + 1335), 1, value=f'{ord(symb):02X}')
-
-                for i, symb in enumerate(self.rs_handler.consts['sw_ver']):
-                    wl.cell((i + 1333), 1, value=symb)
-
-                wl.cell(1337, 1, value=self.rs_handler.consts['pc'])
-                wl.cell(1338, 1, value=self.rs_handler.consts['alt_cab_rato'])
-                wl.cell(1339, 1, value=self.rs_handler.consts['pc_offset_nvm'])
-                wl.cell(1340, 1, value=self.rs_handler.consts['pc_offset_nvm_checksum'])
-                wl.cell(1341, 1, value=self.rs_handler.consts['pc_check_offst'])
-                wl.cell(1342, 1, value=self.rs_handler.consts['drift_comp_cnt_0'])
-                wl.cell(1343, 1, value=self.rs_handler.consts['drift_comp_cnt_1'])
-                wl.cell(1344, 1, value=self.rs_handler.consts['pc_offset_fail_cnt'])
-
-                filename = (f'moduleCPC'
-                                 f"_{self.rs_handler.consts['pn_hw']}"
-                                 f"{self.rs_handler.consts['pn_sw']}"
-                                 f"_{self.rs_handler.consts['sn']}.xlsx")
-
-                home = os.path.expanduser('~')
-                path, _ = QFileDialog.getSaveFileName(
-                    self,
-                    caption='Сохранение данных из nvSRAM',
-                    directory=f'{home}/{filename}',
-                    filter='Excel Files (*.xlsx);;All Files (*)',
-                    initialFilter='Exel Files (*.xlsx)',
-                    options=QFileDialog.Option.DontUseNativeDialog
-                )
-
-                if path:
-                    book.save(path)
-                else:
-                    return
-            except Exception as e:
-                self.slot_handler_error(f'{e}\nПопробуйте еще раз')
+        try:
+            build_nvm_workbook(self.rs_handler.raw_buffs).save(path)
+        except Exception as e:
+            self.slot_handler_error(f'Не удалось сохранить NVM: {e}')
 
 
     @pyqtSlot()
@@ -397,8 +389,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         #сброс LCD панелей
         self.ui.lcdNumber.display(0)
-        self.ui.lcdNumber_pc.display(0)
-        self.ui.lcdNumber_alt.display(0)
+        self.ui.lcdNumber_pc.display('----')
+        self.ui.lcdNumber_alt.display('----')
 
     @pyqtSlot(int)
     def slot_show_progress_read_buffs(self, progr: int):

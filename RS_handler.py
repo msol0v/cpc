@@ -424,7 +424,6 @@ class RsWorker(QObject):
     FAULT_BUFFER_DATA_END = FAULT_MEMORY_START + FAULT_BUFFER_COUNT * FAULT_BUFFER_SIZE * 2 - 2
     FAULT_BYTE_READ_ATTEMPTS = 3
 
-    signal_pc_alt = pyqtSignal(tuple)
     sig_send_consts = pyqtSignal(dict)
     sig_rw_reply = pyqtSignal(int, str)
     sig_show_fbuffs = pyqtSignal(list)
@@ -437,20 +436,11 @@ class RsWorker(QObject):
         self.handler = RWHandler()
         self.handler.setParent(self)
 
-        self.timer_poll = QTimer(self)
-        self.timer_poll.setInterval(33)
-        self.timer_poll.timeout.connect(self.on_timer_poll)
-        self.handler.sig_timers_start.connect(self.timer_poll.start)
-        self.is_polling = False
-
         self.raw_buffs = []
 
         self.consts = None
 
         self.flag_activity_rs_communication = False
-
-        self.pc_avg = []
-        self.alt_avg = []
 
         # Fault-buffers async read state
         self._fb_in_progress = False
@@ -465,40 +455,6 @@ class RsWorker(QObject):
     @pyqtSlot()
     def start(self):
         self.handler.start()
-
-    def read_pc_alt_raw(self):
-        pc, alt = None, None
-        while pc is None or alt is None:
-            pc = self.handler.read_word(0xA004, priority=10)
-            alt = self.handler.read_word(0xA01E, priority=10)
-        return pc, alt
-
-    def read_pc_alt(self):
-        pc = self.handler.read_word(0xA004, priority=10)
-        if pc is None:
-            return
-        pc = (int(pc, 16) / 1024) * PSI_HPA
-        self.pc_avg.append(pc)
-        if len(self.pc_avg) > 25:
-            self.pc_avg.pop(0)
-        pc_res = str(round(sum(self.pc_avg) / len(self.pc_avg), 2))
-
-        alt = self.handler.read_word(0xA01E, priority=10)
-        if alt is None:
-            return
-        alt = int(alt, 16)
-        if alt < 32768:
-            alt = alt / 4
-        else:
-            alt = round(((65535 - alt) / -4), 2)
-
-        self.alt_avg.append(alt)
-        if len(self.alt_avg) > 25:
-            self.alt_avg.pop(0)
-        alt_res = str(round(sum(self.alt_avg) / len(self.alt_avg), 2))
-
-        self.signal_pc_alt.emit((pc_res, alt_res))
-
 
     def read_pn_hw(self):
         hw = '0000-'
@@ -619,28 +575,7 @@ class RsWorker(QObject):
 
     @pyqtSlot()
     def slot_get_consts(self):
-        pc, alt_cab_rato = self.read_pc_alt_raw()
-        # 'pc_offset_nvm': int(self.handler.read_word(0xA100) / 2048) * PSI_HPA,
-        # 'pc_offset_nvm_checksum': (int(self.handler.read_word(0xA102), 16) / 2048) * PSI_HPA,
-        # 'pc_check_offst': (int(self.handler.read_word(0xA104), 16) / 2048) * PSI_HPA,
-        # 'drift_comp_cnt': int((self.handler.read_word(0xA106) + self.handler.read_word(0xA108)), 16),
-        # 'pc_offset_fail_cnt': int(self.handler.read_byte(0xA10A), 16),
-
-        self.consts = {
-            'pc_offset_nvm' : self.handler.read_word(0xA100, priority=30),
-            'pc_offset_nvm_checksum' : self.handler.read_word(0xA102, priority=30),
-            'pc_check_offst' : self.handler.read_word(0xA104, priority=30),
-            'drift_comp_cnt_0' : self.handler.read_word(0xA106, priority=30),
-            'drift_comp_cnt_1': self.handler.read_word(0xA108, priority=30),
-            'pc_offset_fail_cnt' : self.handler.read_byte(0xA10A, priority=30),
-            'pn_hw': self.read_pn_hw(),
-            'pn_sw': self.read_pn_sw(),
-            'sn': self.read_sn(),
-            'sw_ver': self.read_sw_ver(),
-            'pc': pc,
-            'alt_cab_rato': alt_cab_rato,
-        }
-        self.sig_send_consts.emit(self.consts)
+        self.sig_error.emit('Адреса констант для 21933 не подтверждены в СММ')
 
 
     @pyqtSlot(bool, int)
@@ -667,18 +602,11 @@ class RsWorker(QObject):
             position=position)))
 
     @pyqtSlot()
-    def on_timer_poll(self):
-        if self.is_polling:
-            return
-        self.is_polling = True
-        try:
-            self.read_pc_alt()
-        finally:
-            self.is_polling = False
-
-    @pyqtSlot()
     def test(self):
         pass
+
+    def _stop_fault_buffer_read(self):
+        self._fb_in_progress = False
 
     def _fb_step(self):
         # internal step for asynchronous reading of fault buffers
@@ -687,7 +615,7 @@ class RsWorker(QObject):
 
         # If all buffers read -> finish
         if self._fb_current_n >= self._fb_total:
-            self._fb_in_progress = False
+            self._stop_fault_buffer_read()
             self.sig_show_fbuffs.emit(self._fb_fbuffs_accumulated)
             # ensure progress completion
             self.sig_progress_read_buffs.emit(100)
@@ -704,13 +632,13 @@ class RsWorker(QObject):
                     break
                 print(f'Повтор чтения NVM {addr:04X}H: попытка {attempt}')
         except Exception as e:
-            self._fb_in_progress = False
+            self._stop_fault_buffer_read()
             self.sig_error.emit(f'Error while reading fault buffers at addr {addr:04X}: {e}')
             return
 
         # if device timed out or returned None -> abort
         if dat is None:
-            self._fb_in_progress = False
+            self._stop_fault_buffer_read()
             self.sig_error.emit(
                 f'Failed to read fault buffer byte at addr {addr:04X} '
                 f'after {self.FAULT_BYTE_READ_ATTEMPTS} attempts'
@@ -727,11 +655,11 @@ class RsWorker(QObject):
             try:
                 fb = FaultsBuffer(self._fb_current_raw)
             except Exception as e:
-                self._fb_in_progress = False
+                self._stop_fault_buffer_read()
                 self.sig_error.emit(f'Error parsing fault buffer #{self._fb_current_n}: {e}')
                 return
 
-            print(f'Fault buffer #{self._fb_current_n}:\n{fb}\n')
+            print(f'Fault buffer #{self._fb_current_n}: code {fb.fault_code}')
             self._fb_fbuffs_accumulated.append(fb)
             self.raw_buffs.extend(self._fb_current_raw)
 

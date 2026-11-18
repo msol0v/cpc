@@ -35,7 +35,7 @@ def int16_from_hex(value: str) -> int:
 def build_nvm_workbook(raw_buffs):
     book = Workbook()
     decoded = book.active
-    decoded.title = 'Fault buffers 21933'
+    decoded.title = 'Fault buffers'
     decoded.append(FAULT_BUFFER_HEADERS)
     for index, offset in enumerate(range(0, len(raw_buffs), FaultsBuffer.SIZE)):
         decoded.append(fault_buffer_row(index, FaultsBuffer(raw_buffs[offset:offset + FaultsBuffer.SIZE])))
@@ -178,7 +178,7 @@ class MainWindow(QtWidgets.QMainWindow):
         QTimer.singleShot(0, self.ui.tableWidget.resizeRowsToContents)
         self.ui.tableWidget.verticalHeader().setVisible(False)
         self.ui.tableWidget.setToolTip('Текущее состояние BITE по RS-422')
-        self.ui.tabWidget.setTabText(self.ui.tabWidget.indexOf(self.ui.tab), 'UUT BITE 21933')
+        self.ui.tabWidget.setTabText(self.ui.tabWidget.indexOf(self.ui.tab), 'UUT BITE')
 
         ### Настройка таблицы констант
         self.ui.tableWidget_consts.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.Stretch)
@@ -204,8 +204,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.ui.readConstsButton.setEnabled(False)
         self.ui.button_write_delta.setEnabled(False)
         self.ui.lineEdit_delta.setEnabled(False)
-        self.ui.readConstsButton.setToolTip('Адреса констант для 21933 не подтверждены')
-        self.ui.button_write_delta.setToolTip('Адреса калибровки для 21933 не подтверждены')
+        self.ui.readConstsButton.setToolTip('Адреса констант не подтверждены в СММ')
+        self.ui.button_write_delta.setToolTip('Адреса калибровки не подтверждены в СММ')
 
         self.arinc_thread.start()
         self.sig_run_arinc_handler.emit()
@@ -221,8 +221,8 @@ class MainWindow(QtWidgets.QMainWindow):
         home = os.path.expanduser('~')
         path, _ = QFileDialog.getSaveFileName(
             self,
-            caption='Сохранение данных NVM 21933',
-            directory=f'{home}/moduleCPC_21933_NVM.xlsx',
+            caption='Сохранение данных NVM',
+            directory=f'{home}/moduleCPC_NVM.xlsx',
             filter='Excel Files (*.xlsx)',
             options=QFileDialog.Option.DontUseNativeDialog
         )
@@ -410,7 +410,7 @@ class MainWindow(QtWidgets.QMainWindow):
             value = (self.fault_buffers[row].disc_info1 if number == 1
                      else self.fault_buffers[row].disc_info2)
             dialog = QDialog(self)
-            dialog.setWindowTitle(f'Буфер 21933 №{row}: DISC_INFO{number} ({value:06X}H)')
+            dialog.setWindowTitle(f'Буфер №{row}: DISC_INFO{number} ({value:06X}H)')
             layout = QVBoxLayout(dialog)
             disc_table = DISC_INFO.make_disc_info_table(number, value, dialog)
             layout.addWidget(disc_table)
@@ -423,7 +423,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if len(raw) == FaultsBuffer.SIZE:
             details += '\n\nRAW: ' + ' '.join(raw)
         dialog = QDialog(self)
-        dialog.setWindowTitle(f'Буфер 21933 №{row}')
+        dialog.setWindowTitle(f'Буфер №{row}')
         layout = QVBoxLayout(dialog)
         text = QPlainTextEdit(dialog)
         text.setReadOnly(True)

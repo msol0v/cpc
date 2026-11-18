@@ -9,7 +9,7 @@ from PyQt5.QtSerialPort import QSerialPort
 
 #################################  Utils  #######################################################
 class FaultsBuffer():
-    """48-байтовая запись буфера ошибок 21933."""
+    """48-байтовая запись буфера ошибок."""
 
     SIZE = 48
 
@@ -615,7 +615,7 @@ class RsWorker(QObject):
 
     @pyqtSlot()
     def slot_get_consts(self):
-        self.sig_error.emit('Адреса констант для 21933 не подтверждены в СММ')
+        self.sig_error.emit('Адреса констант не подтверждены в СММ')
 
 
     @pyqtSlot(bool, int)

@@ -1785,7 +1785,7 @@ class Ui_MainWindow(object):
         self.sdac_2.setTristate(False)
         self.sdac_2.setObjectName("sdac_2")
         self.gridLayout_5.addWidget(self.groupBox_11, 2, 3, 1, 1)
-        self.tabWidget.addTab(self.tabWidgetPage1, "CPC 20791 Out")
+        self.tabWidget.addTab(self.tabWidgetPage1, "CPC Out")
         self.tab_2 = QtWidgets.QWidget()
         self.tab_2.setObjectName("tab_2")
         self.setDefaultButton = QtWidgets.QPushButton(self.tab_2)
@@ -2231,7 +2231,7 @@ class Ui_MainWindow(object):
 
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
-        MainWindow.setWindowTitle(_translate("MainWindow", "TEST PANEL SOFTWARE PN 468361.003 CMM 21-31-21"))
+        MainWindow.setWindowTitle(_translate("MainWindow", "TEST PANEL SOFTWARE CMM 21-33-21"))
         self.groupBox_3.setTitle(_translate("MainWindow", "ARINC Label 352 / 353"))
         self.label_25.setText(_translate("MainWindow", "SA12"))
         self.ENG2_N2_0.setText(_translate("MainWindow", "TO POWER"))
@@ -2391,7 +2391,7 @@ class Ui_MainWindow(object):
         self.comboBox_ofv_bite.setItemText(0, _translate("MainWindow", "No Faults"))
         self.comboBox_ofv_bite.setItemText(1, _translate("MainWindow", "Faults"))
         self.pushButton_setCustom_ofv.setText(_translate("MainWindow", "Set custom"))
-        self.tabWidget.setTabText(self.tabWidget.indexOf(self.tab_2), _translate("MainWindow", "CPC 20791 In"))
+        self.tabWidget.setTabText(self.tabWidget.indexOf(self.tab_2), _translate("MainWindow", "CPC In"))
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.tab), _translate("MainWindow", "UUT BITE"))
         self.groupBox_15.setTitle(_translate("MainWindow", "nvSRAM Write"))
         self.label_35.setText(_translate("MainWindow", "Address"))

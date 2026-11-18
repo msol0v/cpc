@@ -11,7 +11,7 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>TEST PANEL SOFTWARE PN 468361.003 CMM 21-31-21</string>
+   <string>TEST PANEL SOFTWARE CMM 21-33-21</string>
   </property>
   <property name="styleSheet">
    <string notr="true">/* ============================================
@@ -685,7 +685,7 @@ QDial::handle:hover {
       </property>
       <widget class="QWidget" name="tabWidgetPage1">
        <attribute name="title">
-        <string notr="true">CPC 20791 Out</string>
+        <string notr="true">CPC Out</string>
        </attribute>
        <layout class="QGridLayout" name="gridLayout_5">
         <item row="0" column="0" colspan="4">
@@ -2924,7 +2924,7 @@ QDial::handle:hover {
       </widget>
       <widget class="QWidget" name="tab_2">
        <attribute name="title">
-        <string>CPC 20791 In</string>
+        <string>CPC In</string>
        </attribute>
        <widget class="QPushButton" name="setDefaultButton">
         <property name="geometry">

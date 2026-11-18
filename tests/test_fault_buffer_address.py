@@ -74,7 +74,7 @@ class FaultBufferAddressTests(unittest.TestCase):
         worker.slot_get_consts()
 
         self.assertEqual(requests, [])
-        self.assertIn('21933', errors[0])
+        self.assertIn('Адреса констант не подтверждены', errors[0])
 
     def test_nvm_export_uses_physical_addresses(self):
         book = build_nvm_workbook(['FF', '0E', '2F'] + ['00'] * 45)

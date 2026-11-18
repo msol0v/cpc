@@ -395,26 +395,27 @@ class MainWindow(QtWidgets.QMainWindow):
         self.fault_buffers = buffs
         table = self.ui.tableWidget_FBuffers
         table.setRowCount(len(buffs))
-        disc_columns = (FAULT_BUFFER_HEADERS.index('DISC_INFO1'),
-                        FAULT_BUFFER_HEADERS.index('DISC_INFO2'))
-        disc_widths = [0, 0]
         for i, buffer in enumerate(buffs):
             for j, value in enumerate(fault_buffer_row(i, buffer)):
                 table.setItem(i, j, QTableWidgetItem(str(value)))
-            disc_tables = (
-                DISC_INFO.make_disc_info_table(1, buffer.disc_info1, table),
-                DISC_INFO.make_disc_info_table(2, buffer.disc_info2, table),
-            )
-            for index, widget in enumerate(disc_tables):
-                table.setCellWidget(i, disc_columns[index], widget)
-                disc_widths[index] = max(disc_widths[index], widget.width())
-            table.setRowHeight(i, max(widget.height() for widget in disc_tables) + 2)
-        for column, width in zip(disc_columns, disc_widths):
-            table.setColumnWidth(column, width + 2)
+        table.resizeRowsToContents()
 
     @pyqtSlot(int, int)
     def show_fault_buffer_info(self, row, column):
         if not 0 <= row < len(self.fault_buffers):
+            return
+        if column in (FAULT_BUFFER_HEADERS.index('DISC_INFO1'),
+                      FAULT_BUFFER_HEADERS.index('DISC_INFO2')):
+            number = 1 if FAULT_BUFFER_HEADERS[column] == 'DISC_INFO1' else 2
+            value = (self.fault_buffers[row].disc_info1 if number == 1
+                     else self.fault_buffers[row].disc_info2)
+            dialog = QDialog(self)
+            dialog.setWindowTitle(f'Буфер 21933 №{row}: DISC_INFO{number} ({value:06X}H)')
+            layout = QVBoxLayout(dialog)
+            disc_table = DISC_INFO.make_disc_info_table(number, value, dialog)
+            layout.addWidget(disc_table)
+            dialog.adjustSize()
+            dialog.exec_()
             return
         values = fault_buffer_row(row, self.fault_buffers[row])
         details = '\n'.join(f'{name}: {value}' for name, value in zip(FAULT_BUFFER_HEADERS, values))

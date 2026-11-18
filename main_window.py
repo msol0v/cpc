@@ -17,6 +17,7 @@ from RS_handler import RsWorker, FaultsBuffer
 from fault_buffer_table import FAULT_BUFFER_HEADERS, fault_buffer_row
 import BITE
 import DISC_INFO
+import FAULT_WORDS
 from openpyxl import Workbook
 import uut_encode
 
@@ -404,9 +405,12 @@ class MainWindow(QtWidgets.QMainWindow):
     def show_fault_buffer_info(self, row, column):
         if not 0 <= row < len(self.fault_buffers):
             return
+        if not 0 <= column < len(FAULT_BUFFER_HEADERS):
+            return
+        header = FAULT_BUFFER_HEADERS[column]
         if column in (FAULT_BUFFER_HEADERS.index('DISC_INFO1'),
                       FAULT_BUFFER_HEADERS.index('DISC_INFO2')):
-            number = 1 if FAULT_BUFFER_HEADERS[column] == 'DISC_INFO1' else 2
+            number = 1 if header == 'DISC_INFO1' else 2
             value = (self.fault_buffers[row].disc_info1 if number == 1
                      else self.fault_buffers[row].disc_info2)
             dialog = QDialog(self)
@@ -414,6 +418,15 @@ class MainWindow(QtWidgets.QMainWindow):
             layout = QVBoxLayout(dialog)
             disc_table = DISC_INFO.make_disc_info_table(number, value, dialog)
             layout.addWidget(disc_table)
+            dialog.adjustSize()
+            dialog.exec_()
+            return
+        if header in FAULT_WORDS.WORD_START_CODES:
+            value = getattr(self.fault_buffers[row], header.lower())
+            dialog = QDialog(self)
+            dialog.setWindowTitle(f'Буфер №{row}: {header} ({value:04X}H)')
+            layout = QVBoxLayout(dialog)
+            layout.addWidget(FAULT_WORDS.make_fault_word_table(header, value, dialog))
             dialog.adjustSize()
             dialog.exec_()
             return

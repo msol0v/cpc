@@ -1,6 +1,5 @@
 import time
-from typing import Optional, Dict, List, Any, Callable
-from functools import lru_cache, wraps
+from typing import Dict, Callable
 import lables_cache
 import json
 
@@ -8,10 +7,8 @@ from PyQt5.QtCore import (
     QObject,
     pyqtSignal,
     QTimer,
-    QThread,
     pyqtSlot,
     QIODevice,
-    QByteArray
 )
 from PyQt5.QtSerialPort import QSerialPort, QSerialPortInfo
 
@@ -92,20 +89,6 @@ class ArincWorker(QObject):
     sig_timer_connecting_start = pyqtSignal()
     sig_timer_connecting_stop = pyqtSignal()
 
-    # Сигналы для каждого типа меток
-    sig_352 = pyqtSignal(dict)
-    sig_353 = pyqtSignal(dict)
-    sig_163 = pyqtSignal(int)
-    sig_057 = pyqtSignal(dict)
-
-    # Сигналы для слов BITE
-    sig_104 = pyqtSignal(int)
-    sig_105 = pyqtSignal(int)
-    sig_106 = pyqtSignal(int)
-    sig_107 = pyqtSignal(int)
-    sig_110 = pyqtSignal(int)
-    sig_111 = pyqtSignal(int)
-
     # Общий сигнал для неизвестных меток (опционально)
     sig_unknown_label = pyqtSignal(int, int)  # label_int, word_int
 
@@ -137,7 +120,7 @@ class ArincWorker(QObject):
         self.rx_labels_int = self.registry.rx_labels_int
         del self.registry #Освобождаем память. Регистрация уже прошла
 
-        # Таймеры для периодической отправки (работают в этом же потоке)
+        # Таймеры контроля подключения и активности шины
         self._setup_timers()
 
         # Счетчик активности шины
@@ -188,11 +171,10 @@ class ArincWorker(QObject):
     def stop(self):
         """Остановка работы"""
         self.activity_timer.stop()
-        self.timer_1sec.stop()
-        self.timer_100msec.stop()
-        self.timer_65msec.stop()
-        self.timer_120msec.stop()
-        self.timer_900msec.stop()
+        self.timer_50ms.stop()
+        self.timer_63ms.stop()
+        self.timer_100ms.stop()
+        self.timer_200ms.stop()
 
         if self.port and self.port.isOpen():
             self.port.close()
@@ -208,44 +190,39 @@ class ArincWorker(QObject):
     def _setup_timers(self):
         """Настройка таймеров"""
 
-        # Таймеры отправки слов
-        self.timer_1sec = QTimer()
-        self.timer_100msec = QTimer()
-        self.timer_65msec = QTimer()
-        self.timer_120msec = QTimer()
-        self.timer_900msec = QTimer()
+        # Периоды входных ARINC-слов по CMM 21-33-20, стр. 1005 и 1007.
+        self.timer_50ms = QTimer(self)
+        self.timer_63ms = QTimer(self)
+        self.timer_100ms = QTimer(self)
+        self.timer_200ms = QTimer(self)
 
-        self.timer_1sec.setInterval(1000)
-        self.timer_100msec.setInterval(100)
-        self.timer_65msec.setInterval(65)
-        self.timer_120msec.setInterval(120)
-        self.timer_900msec.setInterval(900)
+        self.timer_50ms.setInterval(50)    # 20 Hz: PNL
+        self.timer_63ms.setInterval(63)    # 15.87 Hz: DADC altitude, within 16 Hz +/-10%
+        self.timer_100ms.setInterval(100)  # 10 Hz: DADC CAS
+        self.timer_200ms.setInterval(200)  # 5 Hz: SMC
 
-        self.timer_1sec.timeout.connect(self.slot_timer_1sec)
-        self.timer_100msec.timeout.connect(self.slot_timer_100msec)
-        self.timer_65msec.timeout.connect(self.slot_timer_65msec)
-        self.timer_120msec.timeout.connect(self.slot_timer_120msec)
-        self.timer_900msec.timeout.connect(self.slot_timer_900msec)
+        self.timer_50ms.timeout.connect(self.slot_timer_50ms)
+        self.timer_63ms.timeout.connect(self.slot_timer_63ms)
+        self.timer_100ms.timeout.connect(self.slot_timer_100ms)
+        self.timer_200ms.timeout.connect(self.slot_timer_200ms)
 
         # Таймер проверки активности шины
-        self.activity_timer = QTimer()
+        self.activity_timer = QTimer(self)
         self.activity_timer.setInterval(1000)
         self.activity_timer.setSingleShot(True)
         self.activity_timer.timeout.connect(self._handle_bus_timeout)
 
-        self.timer_connecting = QTimer()
+        self.timer_connecting = QTimer(self)
         self.timer_connecting.setInterval(1000)
         self.timer_connecting.setSingleShot(True)
         self.sig_timer_connecting_start.connect(self.timer_connecting.start)
         self.sig_timer_connecting_stop.connect(self.timer_connecting.stop)
         self.timer_connecting.timeout.connect(self.slot_connecting_timeout)
 
-
-        self.sig_connected.connect(self.timer_1sec.start)
-        self.sig_connected.connect(self.timer_100msec.start)
-        self.sig_connected.connect(self.timer_65msec.start)
-        self.sig_connected.connect(self.timer_120msec.start)
-        self.sig_connected.connect(self.timer_900msec.start)
+        self.sig_connected.connect(self.timer_50ms.start)
+        self.sig_connected.connect(self.timer_63ms.start)
+        self.sig_connected.connect(self.timer_100ms.start)
+        self.sig_connected.connect(self.timer_200ms.start)
         self.sig_start_activity_timer.connect(self.activity_timer.start)
 
     @pyqtSlot()
@@ -347,67 +324,47 @@ class ArincWorker(QObject):
         """Настройка преобразователя"""
         self.port.write('start 1\n'.encode('utf-8'))
         self.port.write('start 2\n'.encode('utf-8'))
-        #QThread.msleep(50)
-        #self.port.clear()
+        self.port.write('transmitter_freq 3\n'.encode('utf-8'))  # ARINC low speed
 
     @pyqtSlot(dict)
     def slot_change_uut_word(self, words: dict):
-        for label, word in words.items():
-            self.uut_in_words[label] = word
+        self.uut_in_words.update(words)
 
     @pyqtSlot()
-    def slot_timer_1sec(self):
-        words = [
-            self.uut_in_words.get('125'),
-            self.uut_in_words.get('126'),
-            self.uut_in_words.get('260'),
-            self.uut_in_words.get('301'),
-            self.uut_in_words.get('302'),
-            self.uut_in_words.get('303'),
-        ]
-        self.send_word_list(words)
-        # self.send_word_list(['855254AA', 'E000006A', '14CA140D',
-        #                       '529F3883', 'C99B1043', '00010CC3'])
+    def slot_timer_50ms(self):
+        self.send_word_list([
+            self.uut_in_words.get('107'),
+            self.uut_in_words.get('127'),
+            self.uut_in_words.get('271'),
+        ])
 
     @pyqtSlot()
-    def slot_timer_100msec(self):
-        words = [self.uut_in_words.get('246')]
-        self.send_word_list(words)
-        #self.send_word_list(['E7F80165'])
-        pass
+    def slot_timer_63ms(self):
+        self.send_word_list([
+            self.uut_in_words.get('203'),
+            self.uut_in_words.get('204'),
+            self.uut_in_words.get('220'),
+        ])
 
     @pyqtSlot()
-    def slot_timer_65msec(self):
-        words = [self.uut_in_words.get('210')]
-        self.send_word_list(words)
-        #self.send_word_list(['6C800111'])
-        pass
+    def slot_timer_100ms(self):
+        self.send_word_list([self.uut_in_words.get('206')])
 
     @pyqtSlot()
-    def slot_timer_120msec(self):
-        words = [self.uut_in_words.get('227')]
-        self.send_word_list(words)
-        #self.send_word_list(['1105C0E9'])
-        pass
+    def slot_timer_200ms(self):
+        self.send_word_list([
+            self.uut_in_words.get('344'),
+            self.uut_in_words.get('346'),
+        ])
 
-    @pyqtSlot()
-    def slot_timer_900msec(self):
-        words = [
-            self.uut_in_words.get('351'),
-            self.uut_in_words.get('256')
-        ]
-        self.send_word_list(words)
-        #self.send_word_list(['00002097', '60FA0175'])
-        pass
-
-    # Методы для отправки данных
     def send_word_list(self, word_list: list):
-        """Отправка списка слов ARINC"""
+        """Отправить последние заданные ARINC-слова через первый канал."""
         if not self._connected:
             return
         for word in word_list:
-            fizz_command = f'send 1 {word}'
-            self.port.write((fizz_command + '\n').encode('utf-8'))
+            if word is None:
+                continue
+            self.port.write(f'send 1 {word}\n'.encode('utf-8'))
 
     @pyqtSlot(bool)
     def slot_fizz_speed(self, is_high: bool):
@@ -417,149 +374,160 @@ class ArincWorker(QObject):
         cmd = 'transmitter_freq 1\n' if is_high else 'transmitter_freq 3\n'
         self.port.write(cmd.encode('utf-8'))
 
+    @staticmethod
+    def _decode_bnr(word: int, lsb_bit: int, resolution: float) -> Dict[str, object]:
+        """Декодировать BNR со знаком в ARINC bit 29."""
+        magnitude_width = 29 - lsb_bit
+        magnitude = (word >> (lsb_bit - 1)) & ((1 << magnitude_width) - 1)
+        sign = (word >> 28) & 0x01
+        value = (-magnitude if sign else magnitude) * resolution
+        return {
+            'sdi': (word >> 8) & 0x03,
+            'value': value,
+            'ssm': (word >> 29) & 0x03,
+            'parity': (word >> 31) & 0x01,
+        }
+
+    @staticmethod
+    def _decode_bnr_raw(word: int) -> Dict[str, int]:
+        """Извлечь BNR-поля, если масштаб и LSB еще не подтверждены."""
+        return {
+            'sdi': (word >> 8) & 0x03,
+            'data_bits_11_28': (word >> 10) & 0x3FFFF,
+            'sign': (word >> 28) & 0x01,
+            'ssm': (word >> 29) & 0x03,
+            'parity': (word >> 31) & 0x01,
+        }
+
+    @staticmethod
+    def _decode_discrete(word: int) -> Dict[str, object]:
+        """Извлечь 19 дискретных битов ARINC 11-29."""
+        return {
+            'sdi': (word >> 8) & 0x03,
+            'data_bits': {
+                bit: (word >> (bit + 9)) & 0x01
+                for bit in range(1, 20)
+            },
+            'ssm': (word >> 29) & 0x03,
+            'parity': (word >> 31) & 0x01,
+        }
+
+    @staticmethod
+    def _decode_fault_word(word: int, first_fault_code: int) -> Dict[str, object]:
+        """Декодировать 16 флагов BIT Fault Matrix из ARINC bits 11-26."""
+        fault_bits = (word >> 10) & 0xFFFF
+        return {
+            'sdi': (word >> 8) & 0x03,
+            'fault_bits': fault_bits,
+            'active_fault_codes': [
+                first_fault_code + bit
+                for bit in range(16)
+                if fault_bits & (1 << bit)
+            ],
+            'ssm': (word >> 29) & 0x03,
+            'parity': (word >> 31) & 0x01,
+        }
+
     def _register_handlers(self):
         """Регистрация меток (нужно только для маппинга)"""
 
-        @self.registry.label_handler('57')
-        def label_57(self, word: int):
-            #@lru_cache(maxsize=256)
-            def _compute_dict(w: int) -> Dict[str, int]:
-                return {
-                    'sdi': (word >> 8) & 0x03,
-                    'sys_in_control': (word >> 10) & 0x01,
-                    'sys_status': (word >> 11) & 0x01,
-                    'lfe_from_fms': (word >> 12) & 0x01,
-                    'excessive_cabin_altitude': (word >> 13) & 0x01,
-                    'low_differential_pressure': (word >> 14) & 0x01,
-                    'preplanned_descent_info': (word >> 15) & 0x01,
-                    'lfes_status': (word >> 16) & 0x01,
-                    'used_adirs_channel': (word >> 17) & 0x03,
-                    'fms_enable': (word >> 19) & 0x01,
-                    'flight_modes': (word >> 20) & 0x07,
-                    'fms_selection': (word >> 23) & 0x03,
-                    'fms_use': (word >> 25) & 0x01,
-                    'qnh_from_fms': (word >> 26) & 0x01,
-                    'class_2_fault': (word >> 27) & 0x01,
-                    'ssm': (word >> 29) & 0x03,
-                }
-            self.sig_057.emit(_compute_dict(word))
+        # Выходные слова CPC 7121-19971-01AC.
+        @self.registry.label_handler('057')
+        def label_057(self, word: int):
+            result = {
+                'sdi': (word >> 8) & 0x03,
+                'auto_in_control': (word >> 10) & 0x01,
+                'auto_channel_fail': (word >> 11) & 0x01,
+                'controller_is_master': (word >> 12) & 0x01,
+                'max_dp_limiter_active': (word >> 13) & 0x01,
+                'pressure_switch_active': (word >> 14) & 0x01,
+                'flight_mode': (word >> 15) & 0x07,
+                'dadc_1_used': (word >> 18) & 0x01,
+                'smc_1_used': (word >> 19) & 0x01,
+                'operation_mode': (word >> 20) & 0x03,
+                'cas_range': (word >> 22) & 0x03,
+                'n1_low_or_invalid': (word >> 24) & 0x01,
+                'n2_low_or_invalid': (word >> 25) & 0x01,
+                'b737x_selected': (word >> 26) & 0x01,
+                'cpalt_source': (word >> 27) & 0x03,
+                'ssm': (word >> 29) & 0x03,
+                'parity': (word >> 31) & 0x01,
+            }
+            # Получили DISCR1: режимы и основной статус контроллера.
 
-        @self.registry.label_handler('352')
-        def label_352(self, word: int):
-            @lru_cache(maxsize=256)
-            def _compute_dict(w: int) -> Dict[str, int]:
-                return {
-                    'SDI': (word >> 8) & 0x03,
-                    'FAULT_WARN_WR': (word >> 10) & 0x01,
-                    'SYS_IN_CNTL_IN': (word >> 12) & 0x01,
-                    'DO_SPARE_1_WR': (word >> 13) & 0x01,
-                    'DO_SPARE_2_WR': (word >> 14) & 0x01,
-                    'DO_SPARE_3_WR': (word >> 15) & 0x01,
-                    'PASS_SIGN_WR': (word >> 16) & 0x01,
-                    'ENG_1_N2': (word >> 18) & 0x01,
-                    'DI_SPARE_3': (word >> 19) & 0x01,
-                    'ENG_2_N2': (word >> 20) & 0x01,
-                    'DI_SPARE_4': (word >> 21) & 0x01,
-                    'LDG_GEAR_NORM': (word >> 22) & 0x01,
-                    'DI_SPARE_5': (word >> 23) & 0x01,
-                    'LDG_GEAR_ESS': (word >> 24) & 0x01,
-                    'DI_SPARE_6': (word >> 25) & 0x01,
-                    'SSM': (word >> 29) & 0x03,
-                }
-            self.sig_352.emit(_compute_dict(word))
+        @self.registry.label_handler('060')
+        def label_060(self, word: int):
+            result = self._decode_discrete(word)
+            # Получили DISCR2: состояния дискретных входов и источников.
 
-        @self.registry.label_handler('353')
-        def label_353(self, word: int):
-            @lru_cache(maxsize=256)
-            def _compute_dict(w: int) -> Dict[str, int]:
-                return {
-                    'SDI': (word >> 8) & 0x03,
-                    'MANUAL_MODE': (word >> 10) & 0x01,
-                    'SYS_ID': (word >> 11) & 0x01,
-                    'DITCH_SWITCH': (word >> 12) & 0x01,
-                    'EMER_RAM_AIR': (word >> 13) & 0x01,
-                    'RS_SELECT': (word >> 14) & 0x01,
-                    'HI_CRFL': (word >> 15) & 0x01,
-                    'FMS_ENABLE': (word >> 16) & 0x01,
-                    'DI_SPARE_2': (word >> 17) & 0x01,
-                    'SSM': (word >> 29) & 0x03,
-                }
-            self.sig_353.emit(_compute_dict(word))
-
-        @self.registry.label_handler('163')
-        def label_163(self, word: int):
-            data_raw = (word >> 10) & 0x7FFFF
-            sign_mask = 1 << 18
-            data = data_raw - (1 << 19) if data_raw & sign_mask else data_raw
-            data = round(data / 8)
-            self.sig_163.emit(data)
-
-        @self.registry.label_handler('104')
-        def label_104(self, word: int):
-            data = (word >> 10) & 0x7FFFF
-            self.sig_104.emit(data)
-
-        @self.registry.label_handler('105')
-        def label_105(self, word: int):
-            data = (word >> 10) & 0x7FFFF
-            self.sig_105.emit(data)
-
-        @self.registry.label_handler('106')
-        def label_106(self, word: int):
-            data = (word >> 10) & 0x7FFFF
-            self.sig_106.emit(data)
+        @self.registry.label_handler('100')
+        def label_100(self, word: int):
+            result = self._decode_bnr_raw(word)
+            # Получили BNR-параметр label 100; масштаб нужно взять из ARINC ICD.
 
         @self.registry.label_handler('107')
         def label_107(self, word: int):
-            data = (word >> 10) & 0x7FFFF
-            self.sig_107.emit(data)
+            result = self._decode_bnr(word, lsb_bit=13, resolution=1.0)
+            # Получили SCRFL: выбранную крейсерскую высоту, ft.
 
-        @self.registry.label_handler('110')
-        def label_110(self, word: int):
-            data = (word >> 10) & 0x7FFFF
-            self.sig_110.emit(data)
-
-        @self.registry.label_handler('111')
-        def label_111(self, word: int):
-            data = (word >> 10) & 0x7FFFF
-            self.sig_111.emit(data)
-
-        @self.registry.label_handler('356')
-        def label_356(self, word: int):
-            #print(f'UUT resp {word:#010X}')
-            pass
-
-        @self.registry.label_handler('365')
-        def label_365(self, word: int):
-            print('EOT from UUT')
-            pass
+        @self.registry.label_handler('127')
+        def label_127(self, word: int):
+            result = self._decode_bnr(word, lsb_bit=13, resolution=1.0)
+            # Получили SLFE: выбранную высоту аэродрома посадки, ft.
 
         @self.registry.label_handler('144')
         def label_144(self, word: int):
-            pass
+            result = self._decode_bnr_raw(word)
+            # Получили BNR-параметр label 144; масштаб нужно взять из ARINC ICD.
 
         @self.registry.label_handler('150')
         def label_150(self, word: int):
-            pass
+            result = self._decode_bnr_raw(word)
+            # Получили BNR-параметр label 150; масштаб нужно взять из ARINC ICD.
 
-        @self.registry.label_handler('151')
-        def label_151(self, word: int):
-            pass
+        @self.registry.label_handler('152')
+        def label_152(self, word: int):
+            result = self._decode_bnr_raw(word)
+            # Получили BNR-параметр label 152; масштаб нужно взять из ARINC ICD.
 
-        @self.registry.label_handler('153')
-        def label_153(self, word: int):
-            pass
+        @self.registry.label_handler('270')
+        def label_270(self, word: int):
+            result = self._decode_discrete(word)
+            # Получили CTR_DISC_STAT: дискретный статус контроллера для панели.
 
-        @self.registry.label_handler('277')
-        def label_277(self, word: int):
-            pass
+        @self.registry.label_handler('271')
+        def label_271(self, word: int):
+            result = self._decode_fault_word(word, first_fault_code=96)
+            # Получили PNL_FAULT_WORD: коды отказов 96-111.
 
-        @self.registry.label_handler('377')
-        def label_377(self, word: int):
-            pass
+        @self.registry.label_handler('350')
+        def label_350(self, word: int):
+            result = self._decode_fault_word(word, first_fault_code=0)
+            # Получили SYS_FAULT_WORD: коды отказов 0-15.
 
-        @self.registry.label_handler('301')
-        def label_301(self, word: int):
-            pass
+        @self.registry.label_handler('351')
+        def label_351(self, word: int):
+            result = self._decode_fault_word(word, first_fault_code=16)
+            # Получили SYS_EXT_FAULT_WORD: коды отказов 16-31.
+
+        @self.registry.label_handler('352')
+        def label_352(self, word: int):
+            result = self._decode_fault_word(word, first_fault_code=32)
+            # Получили CTR_FAULT_WORD1: коды отказов 32-47.
+
+        @self.registry.label_handler('353')
+        def label_353(self, word: int):
+            result = self._decode_fault_word(word, first_fault_code=48)
+            # Получили CTR_FAULT_WORD2: коды отказов 48-63.
+
+        @self.registry.label_handler('354')
+        def label_354(self, word: int):
+            result = self._decode_fault_word(word, first_fault_code=64)
+            # Получили OFV_FAULT_WORD1: коды отказов 64-79.
+
+        @self.registry.label_handler('355')
+        def label_355(self, word: int):
+            result = self._decode_fault_word(word, first_fault_code=80)
+            # Получили OFV_FAULT_WORD2: коды отказов 80-95.
 
 

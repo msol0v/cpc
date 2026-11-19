@@ -7,7 +7,7 @@ faulthandler.enable()
 
 from PyQt5 import QtWidgets, QtCore
 from PyQt5.QtCore import QThread, pyqtSlot, pyqtSignal, QTimer
-from PyQt5.QtWidgets import QRadioButton, QComboBox, QTableWidgetItem, QDialog, QVBoxLayout, QMessageBox, QFileDialog, QPlainTextEdit
+from PyQt5.QtWidgets import QComboBox, QTableWidgetItem, QDialog, QVBoxLayout, QMessageBox, QFileDialog, QPlainTextEdit
 from PyQt5.QtGui import QColor, QBrush
 from _ui_main_window import Ui_MainWindow
 import os
@@ -40,7 +40,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
     sig_r_nvram = pyqtSignal(bool, int)
     sig_w_nvram = pyqtSignal(bool, int, int)
-
     sig_change_uut_in_words = pyqtSignal(dict)
 
     def __init__(self):
@@ -99,35 +98,16 @@ class MainWindow(QtWidgets.QMainWindow):
         self.rs_handler.sig_show_fbuffs.connect(self.show_fbuffs)
         self.ui.tableWidget_FBuffers.cellDoubleClicked.connect(self.show_fault_buffer_info)
 
-        # uut in
+        # UUT inputs and OFV control
         self.sig_change_uut_in_words.connect(self.arinc_handler.slot_change_uut_word)
+        self.default_uut_in_params = uut_encode.default_uut_in_words()
         self.ui.setDefaultButton.clicked.connect(self.slot_set_default_button)
-        self.ui.pushButton_setCustom_cfds.clicked.connect(self.slot_change_cfds)
-        self.ui.pushButton_setCustom_fms.clicked.connect(self.slot_change_fms)
-        self.ui.pushButton_setCustom_adirs.clicked.connect(self.slot_change_adirs)
-        self.default_uut_in_params = {
-            '246': '1020',
-            '210': '100',
-            '125': '855254AA',
-            '126': 'E000006A',
-            '227': '1105C0E9',
-            '260': '14CA140D',
-            '301': '529F3883',
-            '302': 'C99B1043',
-            '303': '00010CC3',
-            '351': '00002097',
-            '256': '992'
-        }
         self.ui.pushButton_setCustom_ofv.clicked.connect(self.slot_change_ofv)
         self.sig_change_ofv.connect(self.rs_handler.slot_bite_change)
         self.default_ofv_pos = 50
 
         #labels
         self.arinc_handler.sig_bus_activity.connect(self.slot_bus_activity)
-        self.arinc_handler.sig_352.connect(self.slot_352_word)
-        self.arinc_handler.sig_353.connect(self.slot_353_word)
-        self.arinc_handler.sig_163.connect(self.slot_163_word)
-        self.arinc_handler.sig_057.connect(self.slot_057_word)
         self.ui.tableWidget.cellDoubleClicked.connect(self.show_row_info)
         self.ui.tableWidget.setColumnCount(4)
         self.ui.tableWidget.setHorizontalHeaderLabels(
@@ -220,35 +200,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
     @pyqtSlot()
-    def slot_change_cfds(self):
-        words = {
-            '125': self.ui.lineEdit_125.text(),
-            '126': self.ui.lineEdit_126.text(),
-            '227': self.ui.lineEdit_227.text(),
-            '260': self.ui.lineEdit_260.text(),
-            '301': self.ui.lineEdit_301.text(),
-            '302': self.ui.lineEdit_302.text(),
-            '303': self.ui.lineEdit_303.text(),
-        }
-        self.sig_change_uut_in_words.emit(words)
-
-    @pyqtSlot()
-    def slot_change_fms(self):
-        words = {
-            '351': self.ui.valid_word_discrete.text(),
-            '256': uut_encode.encode_256(int(self.ui.lfe_in_feet.text()))
-        }
-        self.sig_change_uut_in_words.emit(words)
-
-    @pyqtSlot()
-    def slot_change_adirs(self):
-        words = {
-            '246': uut_encode.encode_246(int(self.ui.static_pressure.text())),
-            '210': uut_encode.encode_210(int(self.ui.true_airspeed.text())),
-        }
-        self.sig_change_uut_in_words.emit(words)
-
-    @pyqtSlot()
     def slot_change_ofv(self):
         state = bool(self.ui.comboBox_ofv_state.currentIndex())
         bite_fault_flag = bool(self.ui.comboBox_ofv_bite.currentIndex())
@@ -301,72 +252,6 @@ class MainWindow(QtWidgets.QMainWindow):
             self.ui.lineEdit_r_reply.setText(reply)
         else:
             self.ui.lineEdit_w_reply.setText(reply)
-
-    def parse_dict_to_radio(self, dict_data):
-        for key, value in dict_data.items():
-            attr_1, attr_0 = (key + '_1', key + '_0')
-            if hasattr(self.ui, attr_1) and hasattr(self.ui, attr_0):
-                box_1: QRadioButton = getattr(self.ui, attr_1)
-                box_0: QRadioButton = getattr(self.ui, attr_0)
-                if value:
-                    box_1.setChecked(True)
-                else:
-                    box_0.setChecked(True)
-
-    def lamps_shutdown(self):
-        """Выставляет все индикаторные RadioButtons в состояние False"""
-        # Группа из slot_352_word (Discrete signals)
-        widgets_352 = [
-            self.ui.FAULT_WARN_WR_1, self.ui.FAULT_WARN_WR_0,
-            self.ui.SYS_IN_CNTL_IN_1, self.ui.SYS_IN_CNTL_IN_0,
-            self.ui.ENG1_N2_1, self.ui.ENG1_N2_0,
-            self.ui.ENG2_N2_1, self.ui.ENG2_N2_0,
-            self.ui.LDG_GEAR_NORM_1, self.ui.LDG_GEAR_NORM_0,
-            self.ui.LDG_GEAR_ESS_1, self.ui.LDG_GEAR_ESS_0,
-            self.ui.PASS_SIGN_WR_1, self.ui.PASS_SIGN_WR_0
-        ]
-
-        # Группа из slot_057_word (System Status / ADIRS)
-        widgets_057 = [
-            self.ui.sys_in_ctrl_yes, self.ui.sys_in_ctrl_no,
-            self.ui.sys_status_fail, self.ui.sys_status_good,
-            self.ui.lfe_from_fms_nused, self.ui.lfe_from_fms_used,
-            self.ui.cabine_altitude_warn, self.ui.cabine_altitude_nwarn,
-            self.ui.diff_pressure_warn, self.ui.diff_pressure_nwarn,
-            self.ui.preplanned_toofast, self.ui.preplanned_good,
-            self.ui.lfes_stat_manual, self.ui.lfes_stat_auto,
-            self.ui.adirs_ch_no, self.ui.adirs_ch_1, self.ui.adirs_ch_2, self.ui.adirs_ch_3,
-            self.ui.fms_enable, self.ui.fms_disable,
-            self.ui.fms_sel_1eng, self.ui.fms_sel_1neng,
-            self.ui.fms_sel_2eng, self.ui.fms_sel_2neng,
-            self.ui.fms_use_nuse, self.ui.fms_use_use,
-            self.ui.qnh_nuse, self.ui.qnh_use,
-            self.ui.class2fault_pres, self.ui.class2fault_npres
-        ]
-
-        # Полетные режимы (Flight Modes) из slot_057_word
-        flight_modes = ['gr', 'to', 'ci', 'ce', 'cr', 'di', 'de', 'ab']
-        for mode in flight_modes:
-            widget = getattr(self.ui, f'flight_modes_{mode}', None)
-            if widget:
-                widget.setAutoExclusive(False)  # Временно отключаем эксклюзивность, чтобы снять выбор со всех
-                widget.setChecked(False)
-                widget.setAutoExclusive(True)
-
-        # Обработка всех списков
-        all_widgets = widgets_352 + widgets_057
-
-        for widget in all_widgets:
-            if widget:
-                # Отключаем авто-эксклюзивность, иначе в группе из 2-х кнопок одна всегда будет True
-                widget.setAutoExclusive(False)
-                widget.setChecked(False)
-                widget.setAutoExclusive(True)
-
-        #сброс LCD панелей
-        self.ui.lcdNumber.display(0)
-        self.ui.lcdNumber_pc.display('----')
-        self.ui.lcdNumber_alt.display('----')
 
     @pyqtSlot(int)
     def slot_show_progress_read_buffs(self, progr: int):
@@ -496,31 +381,14 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             self.ui.sdac_2.setChecked(False)
 
-        if sdac_1 == False and sdac_2 == False:
-            self.lamps_shutdown()
-
-
     @pyqtSlot()
     def slot_set_default_button(self):
-        self.ui.lineEdit_125.setText(self.default_uut_in_params['125'])
-        self.ui.lineEdit_126.setText(self.default_uut_in_params['126'])
-        self.ui.lineEdit_227.setText(self.default_uut_in_params['227'])
-        self.ui.lineEdit_260.setText(self.default_uut_in_params['260'])
-        self.ui.lineEdit_301.setText(self.default_uut_in_params['301'])
-        self.ui.lineEdit_302.setText(self.default_uut_in_params['302'])
-        self.ui.lineEdit_303.setText(self.default_uut_in_params['303'])
-        self.ui.valid_word_discrete.setText(self.default_uut_in_params['351'])
-        self.ui.lfe_in_feet.setText(self.default_uut_in_params['256'])
-        self.ui.static_pressure.setText(self.default_uut_in_params['246'])
-        self.ui.true_airspeed.setText(self.default_uut_in_params['210'])
+        self.sig_change_uut_in_words.emit(self.default_uut_in_params)
 
         self.ui.lineEdit_ofv_input.setText(f'{self.default_ofv_pos}')
         self.ui.comboBox_ofv_state.setCurrentIndex(1) #Operational
         self.ui.comboBox_ofv_bite.setCurrentIndex(0)
 
-        self.slot_change_fms()
-        self.slot_change_cfds()
-        self.slot_change_adirs()
         self.slot_change_ofv()
 
 
@@ -613,141 +481,6 @@ class MainWindow(QtWidgets.QMainWindow):
         pc, alt = pc_alt
         self.ui.lcdNumber_pc.display(pc)
         self.ui.lcdNumber_alt.display(alt)
-
-    @pyqtSlot(dict)
-    def slot_352_word(self, disc_sig_dict):
-        if disc_sig_dict['FAULT_WARN_WR']:
-            self.ui.FAULT_WARN_WR_1.setChecked(True)
-        else:
-            self.ui.FAULT_WARN_WR_0.setChecked(True)
-
-        if disc_sig_dict['SYS_IN_CNTL_IN']:
-            self.ui.SYS_IN_CNTL_IN_1.setChecked(True)
-        else:
-            self.ui.SYS_IN_CNTL_IN_0.setChecked(True)
-
-        if disc_sig_dict['ENG_1_N2']:
-            self.ui.ENG1_N2_1.setChecked(True)
-        else:
-            self.ui.ENG1_N2_0.setChecked(True)
-
-        if disc_sig_dict['ENG_2_N2']:
-            self.ui.ENG2_N2_1.setChecked(True)
-        else:
-            self.ui.ENG2_N2_0.setChecked(True)
-
-        if disc_sig_dict['LDG_GEAR_NORM']:
-            self.ui.LDG_GEAR_NORM_1.setChecked(True)
-        else:
-            self.ui.LDG_GEAR_NORM_0.setChecked(True)
-
-        if disc_sig_dict['LDG_GEAR_ESS']:
-            self.ui.LDG_GEAR_ESS_1.setChecked(True)
-        else:
-            self.ui.LDG_GEAR_ESS_0.setChecked(True)
-
-        if disc_sig_dict['PASS_SIGN_WR']:
-            self.ui.PASS_SIGN_WR_1.setChecked(True)
-        else:
-            self.ui.PASS_SIGN_WR_0.setChecked(True)
-
-    @pyqtSlot(dict)
-    def slot_353_word(self, disc_sig_dict):
-        self.parse_dict_to_radio(disc_sig_dict)
-
-    @pyqtSlot(int)
-    def slot_163_word(self, data):
-        self.ui.lcdNumber.display(data)
-
-    @pyqtSlot(dict)
-    def slot_057_word(self, data):
-        if data['sys_in_control']:
-            self.ui.sys_in_ctrl_yes.setChecked(True)
-        else:
-            self.ui.sys_in_ctrl_no.setChecked(True)
-
-        if data['sys_status']:
-            self.ui.sys_status_fail.setChecked(True)
-        else:
-            self.ui.sys_status_good.setChecked(True)
-
-        if data['lfe_from_fms']:
-            self.ui.lfe_from_fms_nused.setChecked(True)
-        else:
-            self.ui.lfe_from_fms_used.setChecked(True)
-
-        if data['excessive_cabin_altitude']:
-            self.ui.cabine_altitude_warn.setChecked(True)
-        else:
-            self.ui.cabine_altitude_nwarn.setChecked(True)
-
-        if data['low_differential_pressure']:
-            self.ui.diff_pressure_warn.setChecked(True)
-        else:
-            self.ui.diff_pressure_nwarn.setChecked(True)
-
-        if data['preplanned_descent_info']:
-            self.ui.preplanned_toofast.setChecked(True)
-        else:
-            self.ui.preplanned_good.setChecked(True)
-
-        if data['lfes_status']:
-            self.ui.lfes_stat_manual.setChecked(True)
-        else:
-            self.ui.lfes_stat_auto.setChecked(True)
-
-        val = data['used_adirs_channel']
-        chan = (val & 0x02) >> 1 | (val & 0x01) << 1
-        match chan:
-            case 0:
-                self.ui.adirs_ch_no.setChecked(True)
-            case 1:
-                self.ui.adirs_ch_1.setChecked(True)
-            case 2:
-                self.ui.adirs_ch_2.setChecked(True)
-            case 3:
-                self.ui.adirs_ch_3.setChecked(True)
-
-        if data['fms_enable']:
-            self.ui.fms_enable.setChecked(True)
-        else:
-            self.ui.fms_disable.setChecked(True)
-
-
-        used_mode = data['flight_modes']
-        used_mode = (used_mode & 0x01) << 2 | (used_mode & 0x02) | (used_mode & 0x04) >> 2
-        modes = ['gr', 'to', 'ci', 'ce', 'cr', 'di', 'de', 'ab']
-        for i, mode in enumerate(modes):
-            widget: QRadioButton = getattr(self.ui, f'flight_modes_{mode}')
-            if i == used_mode:
-                widget.setChecked(True)
-
-        val = data['fms_selection']
-        fms_sel = (val & 0x02) >> 1 | (val & 0x01) << 1
-        match fms_sel:
-            case 0:
-                self.ui.fms_sel_1eng.setChecked(True)
-            case 1:
-                self.ui.fms_sel_1neng.setChecked(True)
-            case 2:
-                self.ui.fms_sel_2eng.setChecked(True)
-            case 3:
-                self.ui.fms_sel_2neng.setChecked(True)
-
-        if data['fms_use']:
-            self.ui.fms_use_nuse.setChecked(True)
-        else:
-            self.ui.fms_use_use.setChecked(True)
-
-        if data['qnh_from_fms']:
-            self.ui.qnh_nuse.setChecked(True)
-        else:
-            self.ui.qnh_use.setChecked(True)
-
-        if data['class_2_fault']:
-            self.ui.class2fault_pres.setChecked(True)
-        else:
-            self.ui.class2fault_npres.setChecked(True)
 
     @pyqtSlot()
     def slot_arinc_handler_connected(self):

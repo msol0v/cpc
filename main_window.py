@@ -18,7 +18,7 @@ from fault_buffer_table import FAULT_BUFFER_HEADERS, fault_buffer_row
 import BITE
 import DISC_INFO
 import FAULT_WORDS
-from openpyxl import Workbook
+from nvm_export import build_nvm_workbook
 import uut_encode
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -32,25 +32,6 @@ def int16_from_hex(value: str) -> int:
     return x
 
 
-
-def build_nvm_workbook(raw_buffs):
-    book = Workbook()
-    decoded = book.active
-    decoded.title = 'Fault buffers'
-    decoded.append(FAULT_BUFFER_HEADERS)
-    for index, offset in enumerate(range(0, len(raw_buffs), FaultsBuffer.SIZE)):
-        decoded.append(fault_buffer_row(index, FaultsBuffer(raw_buffs[offset:offset + FaultsBuffer.SIZE])))
-
-    sheet = book.create_sheet('NVM raw')
-    sheet.append(['Address', 'Byte', 'Buffer', 'Offset'])
-    for index, value in enumerate(raw_buffs):
-        address = RsWorker.FAULT_MEMORY_START + index * 2
-        sheet.append([
-            f'{address:04X}H', value,
-            index // RsWorker.FAULT_BUFFER_SIZE,
-            index % RsWorker.FAULT_BUFFER_SIZE,
-        ])
-    return book
 
 class MainWindow(QtWidgets.QMainWindow):
 

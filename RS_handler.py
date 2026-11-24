@@ -567,12 +567,7 @@ class RsWorker(QObject):
             parameter_address = self.find_parameter_address(
                 self.NVM_BIT_FAULT_MATRIX_LATCH_OFFSET, priority=40
             )
-            start_reply = self.handler.read_word(parameter_address, priority=40)
-            if start_reply is None:
-                raise RuntimeError(
-                    f'Нет ответа для адреса матрицы BITE по {parameter_address:04X}H'
-                )
-            address = int(start_reply, 16)
+            address = parameter_address
             if address + self.BITE_MATRIX_SIZE - 1 > 0xFFFF:
                 raise ValueError(f'Адрес матрицы BITE вне памяти: {address:04X}H')
 

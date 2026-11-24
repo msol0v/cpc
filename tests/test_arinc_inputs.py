@@ -95,7 +95,7 @@ class ArincInputTests(unittest.TestCase):
         worker._process_line(b'wrong device\n')
         self.assertEqual(verified, [])
 
-        worker._process_line(b'ver.USB-BSCMk0\n')
+        worker._process_line(b'ver.USB-BSCMk1\n')
         self.assertEqual(verified, ['COM77'])
         self.assertTrue(worker._connected)
         self.assertIn(b'start 1\n', worker.port.writes)

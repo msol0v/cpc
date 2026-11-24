@@ -78,6 +78,30 @@ class FaultBufferAddressTests(unittest.TestCase):
         self.assertEqual(requests, [])
         self.assertIn('Адреса констант не подтверждены', errors[0])
 
+    def test_bite_matrix_starts_at_parameter_table_pointer(self):
+        worker = RsWorker()
+        word_addresses = []
+        byte_addresses = []
+
+        def read_word(address, priority=50):
+            word_addresses.append(address)
+            return {0x2084: '299C', 0x29A2: 'C559'}[address]
+
+        def read_byte(address, priority=50):
+            byte_addresses.append(address)
+            return '0E' if address == 0xC559 else '00'
+
+        worker.handler.read_word = read_word
+        worker.handler.read_byte = read_byte
+        matrices = []
+        worker.sig_bite_matrix.connect(matrices.append)
+
+        worker.poll_bite_matrix()
+
+        self.assertEqual(word_addresses, [0x2084, 0x29A2])
+        self.assertEqual(byte_addresses, list(range(0xC559, 0xC559 + 14)))
+        self.assertEqual(matrices, [0x0E])
+
     def test_nvm_export_uses_physical_addresses(self):
         book = build_nvm_workbook(['FF', '0E', '2F'] + ['00'] * 45)
         sheet = book['NVM raw']

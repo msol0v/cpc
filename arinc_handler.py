@@ -84,6 +84,7 @@ class ArincWorker(QObject):
     # Сигналы для передачи данных в главный поток
     sig_error = pyqtSignal(str)
     sig_connected = pyqtSignal()
+    sig_port_verified = pyqtSignal(str)
     sig_bus_activity = pyqtSignal(dict)
     sig_start_activity_timer = pyqtSignal()
     sig_timer_connecting_start = pyqtSignal()
@@ -101,7 +102,7 @@ class ArincWorker(QObject):
 
 
         # Параметры порта
-        self._port_name = self.config['ports']['arinc']
+        self._port_name = port_name
         self._baud_rate = 115200
         self.port = None
 
@@ -138,6 +139,8 @@ class ArincWorker(QObject):
         Слот для подключения к порту.
         Вызывается из главного потока через сигнал.
         """
+        self.stop()
+        self._rx_buffer = b''
         print(f"Connecting to {self._port_name}...")
 
         # Создаем и открываем порт
@@ -153,6 +156,7 @@ class ArincWorker(QObject):
         # Открываем порт
         mode = QIODevice.OpenMode(QIODevice.ReadWrite)
         if not self.port.open(mode):
+            self.sig_error.emit(f'Cannot open ARINC port {self._port_name}: {self.port.errorString()}')
             self.stop()
             return False
 
@@ -167,9 +171,15 @@ class ArincWorker(QObject):
 
         return True
 
+    @pyqtSlot(str)
+    def slot_connect_port(self, port_name: str):
+        self._port_name = port_name
+        self.slot_connect()
+
     @pyqtSlot()
     def stop(self):
         """Остановка работы"""
+        self.timer_connecting.stop()
         self.activity_timer.stop()
         self.timer_50ms.stop()
         self.timer_63ms.stop()
@@ -178,7 +188,8 @@ class ArincWorker(QObject):
 
         if self.port and self.port.isOpen():
             self.port.close()
-            self._connected = False
+        self._connected = False
+        self._waiting_for_version = True
 
     @pyqtSlot(QSerialPort.SerialPortError)
     def handle_error(self, error):
@@ -279,6 +290,7 @@ class ArincWorker(QObject):
                 self._waiting_for_version = False
                 self.sig_connected.emit()
                 self._configure_fizz()  # Настраиваем преобразователь
+                self.sig_port_verified.emit(self._port_name)
                 self.sig_start_activity_timer.emit()
             return
 

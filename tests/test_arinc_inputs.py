@@ -85,6 +85,24 @@ class ArincInputTests(unittest.TestCase):
         self.assertTrue(all(command.startswith('send 1 ') for command in commands))
         self.assertEqual(sent_labels, expected_labels)
 
+    def test_selected_port_is_confirmed_only_after_adapter_reply(self):
+        worker = ArincWorker('COM77')
+        self.assertEqual(worker._port_name, 'COM77')
+        worker.port = _PortStub()
+        verified = []
+        worker.sig_port_verified.connect(verified.append)
+
+        worker._process_line(b'wrong device\n')
+        self.assertEqual(verified, [])
+
+        worker._process_line(b'ver.USB-BSCMk0\n')
+        self.assertEqual(verified, ['COM77'])
+        self.assertTrue(worker._connected)
+        self.assertIn(b'start 1\n', worker.port.writes)
+        for timer in (worker.timer_50ms, worker.timer_63ms,
+                      worker.timer_100ms, worker.timer_200ms):
+            timer.stop()
+
 
 if __name__ == '__main__':
     unittest.main()

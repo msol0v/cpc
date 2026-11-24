@@ -9,6 +9,7 @@ from PyQt5 import QtWidgets, QtCore
 from PyQt5.QtCore import QThread, pyqtSlot, pyqtSignal, QTimer
 from PyQt5.QtWidgets import QComboBox, QTableWidgetItem, QDialog, QVBoxLayout, QMessageBox, QFileDialog, QPlainTextEdit
 from PyQt5.QtGui import QColor, QBrush
+from PyQt5.QtSerialPort import QSerialPortInfo
 from _ui_main_window import Ui_MainWindow
 import os
 import json
@@ -36,6 +37,7 @@ def int16_from_hex(value: str) -> int:
 class MainWindow(QtWidgets.QMainWindow):
 
     sig_run_arinc_handler = pyqtSignal()
+    sig_connect_arinc_port = pyqtSignal(str)
     sig_change_ofv = pyqtSignal(bool, bool, int)
 
     sig_r_nvram = pyqtSignal(bool, int)
@@ -54,12 +56,18 @@ class MainWindow(QtWidgets.QMainWindow):
         self.fault_buffers = []
 
         # Get com-ports names
-        with open('ports.json', 'r', encoding='utf-8') as f:
+        self.ports_path = os.path.join(base_dir, 'ports.json')
+        with open(self.ports_path, 'r', encoding='utf-8') as f:
             ports = json.load(f)
+        self.arinc_port_name = ports.get('arinc-com', '')
+        self._requested_arinc_port = self.arinc_port_name
+
+        self.arinc_port_menu = self.menuBar().addMenu('Порт ARINC (Физика-Прибор)')
+        self.arinc_port_menu.aboutToShow.connect(self.refresh_arinc_port_menu)
 
         # Treads
         self.arinc_thread = QThread()
-        self.arinc_handler = ArincWorker(ports['arinc-com'])
+        self.arinc_handler = ArincWorker(self.arinc_port_name)
         self.arinc_handler.moveToThread(self.arinc_thread)
 
         self.rs_thread = QThread()
@@ -72,7 +80,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.arinc_handler.sig_error.connect(self.slot_handler_error)
         self.rs_handler.sig_error.connect(self.slot_handler_error)
         self.arinc_handler.sig_connected.connect(self.slot_arinc_handler_connected)
+        self.arinc_handler.sig_port_verified.connect(self.slot_arinc_port_verified)
         self.sig_run_arinc_handler.connect(self.arinc_handler.slot_connect)
+        self.sig_connect_arinc_port.connect(self.arinc_handler.slot_connect_port)
 
 
         self.ui.rButton.clicked.connect(self.on_rButton_clicked)
@@ -485,6 +495,47 @@ class MainWindow(QtWidgets.QMainWindow):
     @pyqtSlot()
     def slot_arinc_handler_connected(self):
         print('arinc handler connected')
+
+    def refresh_arinc_port_menu(self):
+        self.arinc_port_menu.clear()
+        ports = sorted(QSerialPortInfo.availablePorts(), key=lambda info: info.portName())
+        if not ports:
+            action = self.arinc_port_menu.addAction('Доступных портов нет')
+            action.setEnabled(False)
+            return
+        for info in ports:
+            port_name = info.portName()
+            label = port_name
+            if info.description():
+                label += f' — {info.description()}'
+            action = self.arinc_port_menu.addAction(label)
+            action.setCheckable(True)
+            action.setChecked(port_name == self.arinc_port_name)
+            action.triggered.connect(
+                lambda _checked=False, name=port_name: self.select_arinc_port(name)
+            )
+
+    def select_arinc_port(self, port_name: str):
+        self._requested_arinc_port = port_name
+        self.statusBar().showMessage(f'Проверка адаптера ARINC на {port_name}...')
+        self.sig_connect_arinc_port.emit(port_name)
+
+    @pyqtSlot(str)
+    def slot_arinc_port_verified(self, port_name: str):
+        if port_name != self._requested_arinc_port:
+            return
+        try:
+            with open(self.ports_path, 'r', encoding='utf-8') as f:
+                ports = json.load(f)
+            ports['arinc-com'] = port_name
+            with open(self.ports_path, 'w', encoding='utf-8') as f:
+                json.dump(ports, f, ensure_ascii=False, indent=2)
+                f.write('\n')
+        except (OSError, ValueError) as exc:
+            self.slot_handler_error(f'Адаптер подключён, но порт не сохранён: {exc}')
+            return
+        self.arinc_port_name = port_name
+        self.statusBar().showMessage(f'ARINC подключён: {port_name}')
 
     @pyqtSlot(str)
     def slot_handler_error(self, error:str):

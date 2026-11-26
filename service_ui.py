@@ -1,6 +1,7 @@
 """Интерфейс стенда CPC для CMM 21-33-21, построенный средствами PyQt5."""
 
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import QEasingCurve, QPropertyAnimation, Qt, pyqtProperty
+from PyQt5.QtGui import QColor, QPainter
 from PyQt5.QtWidgets import (
     QAbstractItemView,
     QComboBox,
@@ -30,10 +31,21 @@ QFrame#sidebar { background: #111d33; border: 0; }
 QFrame#card { background: white; border: 1px solid #dfe6f0; border-radius: 11px; }
 QLabel { background: transparent; }
 QPushButton { background: white; color: #243754; border: 1px solid #cfd9e7; border-radius: 7px; padding: 7px 12px; }
+QPushButton:hover { background: #eaf1ff; border-color: #8eafe1; }
+QPushButton:pressed { background: #d7e5ff; border-color: #4d83d1; padding-top: 9px; padding-bottom: 5px; }
+QPushButton:disabled { color: #9ba9bb; background: #edf0f5; border-color: #dde3eb; }
 QPushButton#primary { background: #2463d3; color: white; border-color: #2463d3; }
+QPushButton#primary:hover { background: #1d56bc; border-color: #1d56bc; }
+QPushButton#primary:pressed { background: #174693; border-color: #174693; }
 QPushButton#nav { background: transparent; border: 0; color: #bdcadc; text-align: left; padding: 12px 15px; }
+QPushButton#nav:hover { background: #1b2b47; color: white; }
+QPushButton#nav:pressed { background: #2b4770; padding-top: 14px; padding-bottom: 10px; }
 QPushButton#nav[active="true"] { background: #213657; color: white; }
+QPushButton#nav[active="true"]:hover { background: #2b4770; }
+QPushButton#nav[active="true"]:pressed { background: #345581; }
 QPushButton#sidebarAction { background: #213657; color: #d9e6f5; border: 1px solid #395475; padding: 6px; }
+QPushButton#sidebarAction:hover { background: #2b4770; border-color: #6688b5; }
+QPushButton#sidebarAction:pressed { background: #172842; padding-top: 8px; padding-bottom: 4px; }
 QComboBox#sidebarPort { background: #213657; color: white; border: 1px solid #395475; }
 QTableWidget { background: white; gridline-color: #dfe6f0; border: 0; selection-background-color: #eaf2ff; selection-color: #243754; }
 QHeaderView::section { background: #f3f6fa; color: #64758d; border: 0; border-bottom: 1px solid #dfe6f0; padding: 7px; font-weight: bold; }
@@ -41,6 +53,49 @@ QLineEdit, QComboBox { background: white; border: 1px solid #cfd9e7; border-radi
 QProgressBar { background: #e9eef6; border: 0; height: 14px; text-align: center; }
 QProgressBar::chunk { background: #2463d3; }
 """
+
+
+class AnimatedButton(QPushButton):
+    def __init__(self, text, parent=None):
+        super().__init__(text, parent)
+        self._press_depth = 0.0
+        self._animation = QPropertyAnimation(self, b"pressDepth", self)
+        self._animation.setEasingCurve(QEasingCurve.OutCubic)
+        self.pressed.connect(self._press)
+        self.released.connect(self._release)
+
+    @pyqtProperty(float)
+    def pressDepth(self):
+        return self._press_depth
+
+    @pressDepth.setter
+    def pressDepth(self, value):
+        self._press_depth = value
+        self.update()
+
+    def _animate(self, target, duration):
+        self._animation.stop()
+        self._animation.setStartValue(self._press_depth)
+        self._animation.setEndValue(target)
+        self._animation.setDuration(duration)
+        self._animation.start()
+
+    def _press(self):
+        self._animate(1.0, 90)
+
+    def _release(self):
+        self.pressDepth = max(self._press_depth, 0.45)
+        self._animate(0.0, 180)
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        if self._press_depth <= 0:
+            return
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QColor(12, 34, 74, round(44 * self._press_depth)))
+        painter.drawRoundedRect(self.rect().adjusted(1, 1, -2, -2), 7, 7)
 
 
 def label(text, size=None, bold=False, color=None):
@@ -104,7 +159,7 @@ class ServiceUi:
         self.nav = []
         self.stack = QStackedWidget()
         for index, name in enumerate(("UUT Output", "BITE", "NVM", "UUT Input")):
-            button = QPushButton(name)
+            button = AnimatedButton(name)
             button.setObjectName("nav")
             button.setProperty("active", "true" if index == 0 else "false")
             button.clicked.connect(lambda _, i=index: self.select_page(i))
@@ -118,7 +173,7 @@ class ServiceUi:
         self.arinc_port_select = QComboBox()
         self.arinc_port_select.setObjectName("sidebarPort")
         sl.addWidget(self.arinc_port_select)
-        self.arinc_reconnect = QPushButton("Connect ARINC")
+        self.arinc_reconnect = AnimatedButton("Connect ARINC")
         self.arinc_reconnect.setObjectName("sidebarAction")
         sl.addWidget(self.arinc_reconnect)
         sl.addSpacing(7)
@@ -126,10 +181,10 @@ class ServiceUi:
         self.rs_port_select = QComboBox()
         self.rs_port_select.setObjectName("sidebarPort")
         sl.addWidget(self.rs_port_select)
-        self.rs_reconnect = QPushButton("Connect RS-422")
+        self.rs_reconnect = AnimatedButton("Connect RS-422")
         self.rs_reconnect.setObjectName("sidebarAction")
         sl.addWidget(self.rs_reconnect)
-        self.refresh_ports = QPushButton("Refresh ports")
+        self.refresh_ports = AnimatedButton("Refresh ports")
         self.refresh_ports.setObjectName("sidebarAction")
         sl.addWidget(self.refresh_ports)
         self.port_message = label("", 9, color="#92a4bf")
@@ -226,7 +281,7 @@ class ServiceUi:
         layout.addWidget(outputs)
 
     def _bite(self, layout):
-        self.bite_refresh = QPushButton("Refresh")
+        self.bite_refresh = AnimatedButton("Refresh")
         self._heading(
             layout, "BITE", "Fault matrix read over RS-422", (self.bite_refresh,)
         )
@@ -260,9 +315,9 @@ class ServiceUi:
         layout.addLayout(body, 1)
 
     def _nvm(self, layout):
-        self.read_buffers = QPushButton("Read buffers")
+        self.read_buffers = AnimatedButton("Read buffers")
         self.read_buffers.setObjectName("primary")
-        self.export_xlsx = QPushButton("Export XLSX")
+        self.export_xlsx = AnimatedButton("Export XLSX")
         self._heading(
             layout,
             "NVM",
@@ -293,7 +348,7 @@ class ServiceUi:
         dl.addWidget(self.buffer_summary)
         self.buffer_fields = table(("FIELD", "VALUE"), 0)
         dl.addWidget(self.buffer_fields, 1)
-        self.open_record = QPushButton("Open full record")
+        self.open_record = AnimatedButton("Open full record")
         dl.addWidget(self.open_record)
         body.addWidget(details, 2)
         layout.addLayout(body, 1)
@@ -309,7 +364,7 @@ class ServiceUi:
         self.read_mode.addItems(("Byte", "Word"))
         self.read_mode.setCurrentIndex(1)
         rr.addWidget(self.read_mode)
-        self.read_button = QPushButton("Read")
+        self.read_button = AnimatedButton("Read")
         rr.addWidget(self.read_button)
         self.read_reply = QLineEdit()
         self.read_reply.setReadOnly(True)
@@ -332,7 +387,7 @@ class ServiceUi:
         self.write_mode = QComboBox()
         self.write_mode.addItems(("Byte", "Word"))
         wr.addWidget(self.write_mode)
-        self.write_button = QPushButton("Write")
+        self.write_button = AnimatedButton("Write")
         wr.addWidget(self.write_button)
         self.write_reply = QLineEdit()
         self.write_reply.setReadOnly(True)
@@ -353,7 +408,7 @@ class ServiceUi:
         il.addWidget(label("Current transmitted default words", 10, color="#6b7d95"))
         self.input_table = table(("LABEL₈", "WORD HEX"), 1)
         il.addWidget(self.input_table, 1)
-        self.reset_defaults = QPushButton("Restore default inputs and OFV state")
+        self.reset_defaults = AnimatedButton("Restore default inputs and OFV state")
         il.addWidget(self.reset_defaults)
         body.addWidget(inputs, 3)
         ofv, ol = card("OFV · RS-422")
@@ -370,7 +425,7 @@ class ServiceUi:
         self.ofv_position = QLineEdit("50")
         form.addWidget(self.ofv_position, 2, 1)
         ol.addLayout(form)
-        self.send_ofv = QPushButton("Update")
+        self.send_ofv = AnimatedButton("Update")
         self.send_ofv.setObjectName("primary")
         ol.addWidget(self.send_ofv)
         ol.addWidget(

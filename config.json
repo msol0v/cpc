@@ -6,7 +6,6 @@
   "ports":
           {
             "rs-422": "COM21",
-            "rs-232": "COM22",
             "arinc": "COM46"
           }
 }

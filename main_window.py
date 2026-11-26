@@ -28,6 +28,7 @@ def fault_name(code):
 
 class MainWindow(QtWidgets.QMainWindow):
     sig_connect_arinc_port = pyqtSignal(str)
+    sig_connect_rs_port = pyqtSignal(str)
     sig_change_ofv = pyqtSignal(bool, bool, int)
     sig_r_nvram = pyqtSignal(bool, int)
     sig_w_nvram = pyqtSignal(bool, int, int)
@@ -54,10 +55,15 @@ class MainWindow(QtWidgets.QMainWindow):
         self.arinc_port_name = ports.get('arinc-com', '')
         self.rs_port_name = ports.get('rs-422', '')
         self._requested_arinc_port = self.arinc_port_name
+        self._pending_rs_port = None
         self.ui.arinc_connection.setText(f'○  ARINC  ·  {self.arinc_port_name or "not set"} · offline')
         self.ui.rs_connection.setText(f'○  RS-422  ·  {self.rs_port_name or "not set"} · offline')
-        self.arinc_port_menu = self.menuBar().addMenu('ARINC port')
-        self.arinc_port_menu.aboutToShow.connect(self.refresh_arinc_port_menu)
+        self.refresh_ports()
+        self.ui.refresh_ports.clicked.connect(self.refresh_ports)
+        self.ui.arinc_port_select.currentIndexChanged.connect(self.select_arinc_port)
+        self.ui.rs_port_select.currentIndexChanged.connect(self.select_rs_port)
+        self.ui.arinc_reconnect.clicked.connect(self.select_arinc_port)
+        self.ui.rs_reconnect.clicked.connect(self.select_rs_port)
 
         self.arinc_thread = QThread(self)
         self.arinc_handler = ArincWorker(self.arinc_port_name)
@@ -71,11 +77,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.sig_change_uut_in_words.connect(self.arinc_handler.slot_change_uut_word)
         self.arinc_handler.sig_connected.connect(self.slot_arinc_connected)
         self.arinc_handler.sig_port_verified.connect(self.slot_arinc_port_verified)
+        self.arinc_handler.sig_port_failed.connect(self.slot_arinc_port_failed)
         self.arinc_handler.sig_bus_activity.connect(self.slot_bus_activity)
         self.arinc_handler.sig_output_word.connect(self.slot_output_word)
         self.arinc_handler.sig_error.connect(self.slot_handler_error)
 
         self.rs_thread.started.connect(self.rs_handler.start)
+        self.sig_connect_rs_port.connect(self.rs_handler.slot_connect_port)
         self.sig_r_nvram.connect(self.rs_handler.slot_read)
         self.sig_w_nvram.connect(self.rs_handler.slot_write)
         self.sig_change_ofv.connect(self.rs_handler.slot_bite_change)
@@ -89,6 +97,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.rs_handler.handler.sig_normal_resp.connect(self.slot_ofv_reply)
         self.rs_handler.handler.sig_response_received.connect(self.slot_rs_packet)
         self.rs_handler.handler.sig_port_opened.connect(self.slot_rs_port_opened)
+        self.rs_handler.handler.sig_port_closed.connect(self.slot_rs_port_closed)
+        self.rs_handler.sig_port_failed.connect(self.slot_rs_port_failed)
 
         self.ui.bite_refresh.clicked.connect(self.sig_refresh_bite.emit)
         self.ui.bite_search.textChanged.connect(self.filter_bite)
@@ -210,6 +220,11 @@ class MainWindow(QtWidgets.QMainWindow):
 
     @pyqtSlot(str)
     def slot_rs_port_opened(self, name):
+        if name == self._pending_rs_port:
+            self._save_port('rs-422', name)
+            self.rs_port_name = name
+            self._pending_rs_port = None
+            self.ui.port_message.setText(f'RS-422 port opened: {name}')
         self.ui.rs_connection.setText(f'●  RS-422  ·  {name}')
         self.ui.rs_connection.setStyleSheet('color: #8be0bb;')
 
@@ -244,7 +259,6 @@ class MainWindow(QtWidgets.QMainWindow):
             return
         self.sig_change_ofv.emit(bool(self.ui.ofv_state.currentIndex()),
                                  bool(self.ui.ofv_bite.currentIndex()), position)
-        self.statusBar().showMessage('OFV S-message configured')
 
     def _hex_input(self, widget, maximum, name):
         try:
@@ -385,46 +399,92 @@ class MainWindow(QtWidgets.QMainWindow):
         except Exception as exc:
             self.slot_handler_error(f'Could not export NVM: {exc}')
 
-    def refresh_arinc_port_menu(self):
-        self.arinc_port_menu.clear()
-        ports = sorted(QSerialPortInfo.availablePorts(), key=lambda info: info.portName())
-        if not ports:
-            self.arinc_port_menu.addAction('No available ports').setEnabled(False)
-        for info in ports:
-            name = info.portName()
-            title = f'{name} — {info.description()}' if info.description() else name
-            action = self.arinc_port_menu.addAction(title)
-            action.setCheckable(True)
-            action.setChecked(name == self.arinc_port_name)
-            action.triggered.connect(lambda _checked=False, port=name: self.select_arinc_port(port))
+    def refresh_ports(self):
+        available = {info.portName(): info.description() for info in QSerialPortInfo.availablePorts()}
+        for selector, saved in ((self.ui.arinc_port_select, self.arinc_port_name),
+                                (self.ui.rs_port_select, self.rs_port_name)):
+            selected = selector.currentData() or saved
+            selector.blockSignals(True)
+            selector.clear()
+            selector.addItem('Select port', '')
+            for name in sorted(set(available) | ({saved} if saved else set())):
+                description = available.get(name)
+                title = f'{name} — {description}' if description else name
+                if name not in available:
+                    title += ' (not detected)'
+                selector.addItem(title, name)
+            index = selector.findData(selected)
+            selector.setCurrentIndex(index if index >= 0 else 0)
+            selector.blockSignals(False)
+        self.ui.port_message.setText(f'{len(available)} port(s) available')
 
-    def select_arinc_port(self, name):
+    def select_arinc_port(self, *_):
+        name = self.ui.arinc_port_select.currentData()
+        if not name:
+            return
         self._requested_arinc_port = name
-        self.statusBar().showMessage(f'Checking ARINC adapter on {name}...')
+        self.ui.arinc_connection.setText(f'○  ARINC  ·  {name} · checking')
+        self.ui.arinc_connection.setStyleSheet('color: #cbd8e9;')
+        self.ui.port_message.setText(f'Checking ARINC adapter on {name}...')
         self.sig_connect_arinc_port.emit(name)
+
+    def select_rs_port(self, *_):
+        name = self.ui.rs_port_select.currentData()
+        if not name:
+            return
+        self._pending_rs_port = name
+        self.ui.port_message.setText(f'Opening RS-422 on {name}...')
+        self.sig_connect_rs_port.emit(name)
+
+    def _save_port(self, key, name):
+        try:
+            with open(self.ports_path, encoding='utf-8') as file:
+                ports = json.load(file)
+            ports[key] = name
+            with open(self.ports_path, 'w', encoding='utf-8') as file:
+                json.dump(ports, file, ensure_ascii=False, indent=2)
+                file.write('\n')
+        except (OSError, ValueError) as exc:
+            self.slot_handler_error(f'Port opened, but settings could not be saved: {exc}')
 
     @pyqtSlot(str)
     def slot_arinc_port_verified(self, name):
         if name != self._requested_arinc_port:
             return
-        try:
-            with open(self.ports_path, encoding='utf-8') as file:
-                ports = json.load(file)
-            ports['arinc-com'] = name
-            with open(self.ports_path, 'w', encoding='utf-8') as file:
-                json.dump(ports, file, ensure_ascii=False, indent=2)
-                file.write('\n')
-        except (OSError, ValueError) as exc:
-            self.slot_handler_error(f'ARINC adapter connected, but port not saved: {exc}')
-            return
+        self._save_port('arinc-com', name)
         self.arinc_port_name = name
         self.ui.arinc_connection.setText(f'●  ARINC  ·  {name}')
         self.ui.arinc_connection.setStyleSheet('color: #8be0bb;')
-        self.statusBar().showMessage(f'ARINC connected: {name}')
+        self.ui.port_message.setText(f'ARINC connected: {name}')
+
+    @pyqtSlot(str, str)
+    def slot_arinc_port_failed(self, name, reason):
+        if name != self._requested_arinc_port:
+            return
+        self.ui.arinc_connection.setText(f'○  ARINC  ·  {name} · offline')
+        self.ui.arinc_connection.setStyleSheet('color: #cbd8e9;')
+        self.ui.port_message.setText(f'ARINC {name}: {reason}')
+
+    @pyqtSlot()
+    def slot_rs_port_closed(self):
+        self.ui.rs_connection.setText(f'○  RS-422  ·  {self.rs_port_name or "not set"} · offline')
+        self.ui.rs_connection.setStyleSheet('color: #cbd8e9;')
+
+    @pyqtSlot(str, str)
+    def slot_rs_port_failed(self, name, reason):
+        if name != self._pending_rs_port:
+            return
+        self._pending_rs_port = None
+        self.ui.port_message.setText(f'RS-422 {name}: {reason}')
+        selector = self.ui.rs_port_select
+        selector.blockSignals(True)
+        index = selector.findData(self.rs_port_name)
+        selector.setCurrentIndex(index if index >= 0 else 0)
+        selector.blockSignals(False)
 
     @pyqtSlot()
     def slot_arinc_connected(self):
-        self.statusBar().showMessage('ARINC adapter connected')
+        self.ui.port_message.setText('ARINC adapter verified')
 
     @pyqtSlot(str)
     def slot_handler_error(self, error):

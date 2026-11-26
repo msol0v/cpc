@@ -163,6 +163,7 @@ class RWTask():
 class RWHandler(QObject):
     sig_timers_start = pyqtSignal()
     sig_port_opened = pyqtSignal(str)
+    sig_port_closed = pyqtSignal()
     sig_response_received = pyqtSignal(bytes)
     sig_request = pyqtSignal(object)
     sig_timeout = pyqtSignal()
@@ -434,6 +435,7 @@ class RsWorker(QObject):
     sig_show_fbuffs = pyqtSignal(list)
     sig_progress_read_buffs = pyqtSignal(int)
     sig_error = pyqtSignal(str)
+    sig_port_failed = pyqtSignal(str, str)
 
     def __init__(self):
         super().__init__()
@@ -466,6 +468,41 @@ class RsWorker(QObject):
     @pyqtSlot()
     def start(self):
         self.handler.start()
+
+    @pyqtSlot(str)
+    def slot_connect_port(self, port_name):
+        if self._bite_polling:
+            self.timer_bite.stop()
+            QTimer.singleShot(50, lambda: self.slot_connect_port(port_name))
+            return
+        if (self._fb_in_progress or self.handler.current_task is not None
+                or not self.handler.task_queue.empty()):
+            self.sig_port_failed.emit(port_name, 'RS-422 is busy; wait for the current operation to finish.')
+            return
+
+        port = self.handler.port
+        previous_name = port.portName()
+        was_open = port.isOpen()
+        if port_name == previous_name and was_open:
+            self.handler.sig_port_opened.emit(port_name)
+            return
+
+        self.timer_bite.stop()
+        self.handler.timer_normal_message.stop()
+        if was_open:
+            port.close()
+            self.handler.sig_port_closed.emit()
+        self.handler.buffer.clear()
+        port.setPortName(port_name)
+        if self.handler.open():
+            self.handler.sig_timers_start.emit()
+            return
+
+        reason = port.errorString()
+        port.setPortName(previous_name)
+        if was_open and self.handler.open():
+            self.handler.sig_timers_start.emit()
+        self.sig_port_failed.emit(port_name, reason)
 
     def read_pn_hw(self):
         hw = '0000-'

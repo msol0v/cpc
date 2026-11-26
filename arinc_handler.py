@@ -87,6 +87,7 @@ class ArincWorker(QObject):
     sig_error = pyqtSignal(str)
     sig_connected = pyqtSignal()
     sig_port_verified = pyqtSignal(str)
+    sig_port_failed = pyqtSignal(str, str)
     sig_bus_activity = pyqtSignal(dict)
     sig_output_word = pyqtSignal(str, int)
     sig_start_activity_timer = pyqtSignal()
@@ -157,9 +158,11 @@ class ArincWorker(QObject):
         # Открываем порт
         mode = QIODevice.OpenMode(QIODevice.ReadWrite)
         if not self.port.open(mode):
+            reason = self.port.errorString()
             self.sig_error.emit(
-                f"Cannot open ARINC port {self._port_name}: {self.port.errorString()}"
+                f"Cannot open ARINC port {self._port_name}: {reason}"
             )
+            self.sig_port_failed.emit(self._port_name, reason)
             self.stop()
             return False
 
@@ -254,6 +257,7 @@ class ArincWorker(QObject):
     @pyqtSlot()
     def slot_connecting_timeout(self):
         self.stop()
+        self.sig_port_failed.emit(self._port_name, 'Adapter ID timeout')
         self.sig_error.emit("Timeout connecting to Fizika Pribor")
 
     @pyqtSlot()

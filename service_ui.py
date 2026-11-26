@@ -20,6 +20,8 @@ QPushButton { background: white; color: #243754; border: 1px solid #cfd9e7; bord
 QPushButton#primary { background: #2463d3; color: white; border-color: #2463d3; }
 QPushButton#nav { background: transparent; border: 0; color: #bdcadc; text-align: left; padding: 12px 15px; }
 QPushButton#nav[active="true"] { background: #213657; color: white; }
+QPushButton#sidebarAction { background: #213657; color: #d9e6f5; border: 1px solid #395475; padding: 6px; }
+QComboBox#sidebarPort { background: #213657; color: white; border: 1px solid #395475; }
 QTableWidget { background: white; gridline-color: #dfe6f0; border: 0; selection-background-color: #eaf2ff; selection-color: #243754; }
 QHeaderView::section { background: #f3f6fa; color: #64758d; border: 0; border-bottom: 1px solid #dfe6f0; padding: 7px; font-weight: bold; }
 QLineEdit, QComboBox { background: white; border: 1px solid #cfd9e7; border-radius: 6px; padding: 5px; min-height: 20px; }
@@ -77,7 +79,7 @@ class ServiceUi:
 
         side = QFrame()
         side.setObjectName('sidebar')
-        side.setFixedWidth(215)
+        side.setFixedWidth(230)
         sl = QVBoxLayout(side)
         sl.setContentsMargins(15, 24, 15, 20)
         sl.setSpacing(8)
@@ -95,10 +97,29 @@ class ServiceUi:
             self.nav.append(button)
         sl.addStretch()
         sl.addWidget(label('CONNECTIONS', 9, True, '#92a4bf'))
-        self.rs_connection = label('●  RS-422  ·  waiting', 10, color='#cbd8e9')
-        self.arinc_connection = label('●  ARINC  ·  waiting', 10, color='#cbd8e9')
-        sl.addWidget(self.rs_connection)
+        self.rs_connection = label('○  RS-422  ·  offline', 10, color='#cbd8e9')
+        self.arinc_connection = label('○  ARINC  ·  offline', 10, color='#cbd8e9')
         sl.addWidget(self.arinc_connection)
+        self.arinc_port_select = QComboBox()
+        self.arinc_port_select.setObjectName('sidebarPort')
+        sl.addWidget(self.arinc_port_select)
+        self.arinc_reconnect = QPushButton('Connect ARINC')
+        self.arinc_reconnect.setObjectName('sidebarAction')
+        sl.addWidget(self.arinc_reconnect)
+        sl.addSpacing(7)
+        sl.addWidget(self.rs_connection)
+        self.rs_port_select = QComboBox()
+        self.rs_port_select.setObjectName('sidebarPort')
+        sl.addWidget(self.rs_port_select)
+        self.rs_reconnect = QPushButton('Connect RS-422')
+        self.rs_reconnect.setObjectName('sidebarAction')
+        sl.addWidget(self.rs_reconnect)
+        self.refresh_ports = QPushButton('Refresh ports')
+        self.refresh_ports.setObjectName('sidebarAction')
+        sl.addWidget(self.refresh_ports)
+        self.port_message = label('', 9, color='#92a4bf')
+        self.port_message.setWordWrap(True)
+        sl.addWidget(self.port_message)
         outer.addWidget(side)
 
         self._add_page(self._overview)

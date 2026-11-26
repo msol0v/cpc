@@ -88,6 +88,7 @@ class ArincWorker(QObject):
     sig_connected = pyqtSignal()
     sig_port_verified = pyqtSignal(str)
     sig_bus_activity = pyqtSignal(dict)
+    sig_output_word = pyqtSignal(str, int)
     sig_start_activity_timer = pyqtSignal()
     sig_timer_connecting_start = pyqtSignal()
     sig_timer_connecting_stop = pyqtSignal()
@@ -335,6 +336,7 @@ class ArincWorker(QObject):
             # print(f"No handler for label {oct(reverse_number(label_int))}")
             return
 
+        self.sig_output_word.emit(self.registry.rx_labels_int[label_int], word_int)
         _handler(self, word_int)
 
     def _configure_fizz(self):

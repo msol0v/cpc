@@ -1,7 +1,7 @@
 """Колонки и формат строки журнала ошибок"""
 
 from RS_handler import RsWorker, FaultsBuffer
-import BITE
+from FAULT_WORDS import FAULT_NAMES
 
 
 FAULT_BUFFER_HEADERS = (
@@ -23,7 +23,7 @@ def fault_buffer_row(index, buffer):
         index,
         f'{RsWorker.FAULT_MEMORY_START + index * FaultsBuffer.SIZE * 2:04X}H',
         buffer.fault_code,
-        BITE.describe_fault_code(buffer.fault_code),
+        FAULT_NAMES[buffer.fault_code] if 0 <= buffer.fault_code < len(FAULT_NAMES) else 'Not listed in BIT fault matrix',
         buffer.intermittent_count,
         int(buffer.bbj_sel_in),
         buffer.flight_leg_counter,

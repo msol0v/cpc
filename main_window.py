@@ -1,543 +1,438 @@
-import faulthandler
-from time import sleep
+"""Главное окно стенда CPC для CMM 21-33-21."""
 
-
-
-faulthandler.enable()
-
-from PyQt5 import QtWidgets, QtCore
-from PyQt5.QtCore import QThread, pyqtSlot, pyqtSignal, QTimer
-from PyQt5.QtWidgets import QComboBox, QTableWidgetItem, QDialog, QVBoxLayout, QMessageBox, QFileDialog, QPlainTextEdit
-from PyQt5.QtGui import QColor, QBrush
-from PyQt5.QtSerialPort import QSerialPortInfo
-from _ui_main_window import Ui_MainWindow
-import os
 import json
-from arinc_handler import ArincWorker
-from RS_handler import RsWorker, FaultsBuffer
-from fault_buffer_table import FAULT_BUFFER_HEADERS, fault_buffer_row
-import BITE
+import os
+
+from PyQt5 import QtCore, QtWidgets
+from PyQt5.QtCore import QThread, QTimer, pyqtSignal, pyqtSlot
+from PyQt5.QtGui import QColor
+from PyQt5.QtSerialPort import QSerialPortInfo
+from PyQt5.QtWidgets import QDialog, QFileDialog, QMessageBox, QPlainTextEdit, QTableWidgetItem, QVBoxLayout
+
 import DISC_INFO
 import FAULT_WORDS
-from nvm_export import build_nvm_workbook
 import uut_encode
+from RS_handler import FaultsBuffer, RsWorker
+from arinc_handler import ArincWorker
+from fault_buffer_table import FAULT_BUFFER_HEADERS, fault_buffer_row
+from nvm_export import build_nvm_workbook
+from service_ui import ServiceUi
 
-base_dir = os.path.dirname(os.path.abspath(__file__))
 
-PSI_HPA = 68.9475729318
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-def int16_from_hex(value: str) -> int:
-    x = int(value, 16) & 0xFFFF
-    if x & 0x8000:
-        x -= 0x10000
-    return x
 
+def fault_name(code):
+    return FAULT_WORDS.FAULT_NAMES[code] if 0 <= code < len(FAULT_WORDS.FAULT_NAMES) else '—'
 
 
 class MainWindow(QtWidgets.QMainWindow):
-
-    sig_run_arinc_handler = pyqtSignal()
     sig_connect_arinc_port = pyqtSignal(str)
     sig_change_ofv = pyqtSignal(bool, bool, int)
-
     sig_r_nvram = pyqtSignal(bool, int)
     sig_w_nvram = pyqtSignal(bool, int, int)
     sig_change_uut_in_words = pyqtSignal(dict)
+    sig_refresh_bite = pyqtSignal()
 
     def __init__(self):
-        super(MainWindow, self).__init__()
-        self.pc_offset_nvm = None
-        self.pc_offset_nvm_checksum = None
-        self.pc_check_offset = None
-        self.is_delta_edited = False
-        self.delta = None
-        self.ui = Ui_MainWindow()
-        self.ui.setupUi(self)
+        super().__init__()
+        self.ui = ServiceUi()
+        self.ui.setup(self)
         self.fault_buffers = []
+        self.bite_matrix = None
+        self.arinc_last_rx_ms = None
+        self.rs_last_rx_ms = None
+        self.clock = QtCore.QElapsedTimer()
+        self.clock.start()
 
-        # Get com-ports names
-        self.ports_path = os.path.join(base_dir, 'ports.json')
-        with open(self.ports_path, 'r', encoding='utf-8') as f:
-            ports = json.load(f)
+        self.ports_path = os.path.join(BASE_DIR, 'ports.json')
+        try:
+            with open(self.ports_path, encoding='utf-8') as file:
+                ports = json.load(file)
+        except (OSError, ValueError):
+            ports = {}
         self.arinc_port_name = ports.get('arinc-com', '')
+        self.rs_port_name = ports.get('rs-422', '')
         self._requested_arinc_port = self.arinc_port_name
-
-        self.arinc_port_menu = self.menuBar().addMenu('Порт ARINC (Физика-Прибор)')
+        self.ui.arinc_connection.setText(f'○  ARINC  ·  {self.arinc_port_name or "not set"} · offline')
+        self.ui.rs_connection.setText(f'○  RS-422  ·  {self.rs_port_name or "not set"} · offline')
+        self.arinc_port_menu = self.menuBar().addMenu('ARINC port')
         self.arinc_port_menu.aboutToShow.connect(self.refresh_arinc_port_menu)
 
-        # Treads
-        self.arinc_thread = QThread()
+        self.arinc_thread = QThread(self)
         self.arinc_handler = ArincWorker(self.arinc_port_name)
         self.arinc_handler.moveToThread(self.arinc_thread)
-
-        self.rs_thread = QThread()
+        self.rs_thread = QThread(self)
         self.rs_handler = RsWorker()
         self.rs_handler.moveToThread(self.rs_thread)
-        self.rs_thread.started.connect(self.rs_handler.start)
 
-
-        # Signals connection
-        self.arinc_handler.sig_error.connect(self.slot_handler_error)
-        self.rs_handler.sig_error.connect(self.slot_handler_error)
-        self.arinc_handler.sig_connected.connect(self.slot_arinc_handler_connected)
-        self.arinc_handler.sig_port_verified.connect(self.slot_arinc_port_verified)
-        self.sig_run_arinc_handler.connect(self.arinc_handler.slot_connect)
+        self.arinc_thread.started.connect(self.arinc_handler.slot_connect)
         self.sig_connect_arinc_port.connect(self.arinc_handler.slot_connect_port)
+        self.sig_change_uut_in_words.connect(self.arinc_handler.slot_change_uut_word)
+        self.arinc_handler.sig_connected.connect(self.slot_arinc_connected)
+        self.arinc_handler.sig_port_verified.connect(self.slot_arinc_port_verified)
+        self.arinc_handler.sig_bus_activity.connect(self.slot_bus_activity)
+        self.arinc_handler.sig_output_word.connect(self.slot_output_word)
+        self.arinc_handler.sig_error.connect(self.slot_handler_error)
 
-
-        self.ui.rButton.clicked.connect(self.on_rButton_clicked)
+        self.rs_thread.started.connect(self.rs_handler.start)
         self.sig_r_nvram.connect(self.rs_handler.slot_read)
-        self.ui.wButton.clicked.connect(self.on_wButton_clicked)
         self.sig_w_nvram.connect(self.rs_handler.slot_write)
+        self.sig_change_ofv.connect(self.rs_handler.slot_bite_change)
+        self.sig_refresh_bite.connect(self.rs_handler.poll_bite_matrix)
         self.rs_handler.sig_rw_reply.connect(self.slot_rw_reply)
         self.rs_handler.sig_bite_matrix.connect(self.show_bite_matrix)
         self.rs_handler.sig_bite_unavailable.connect(self.show_bite_unavailable)
-
-        self.rs_handler.handler.sig_normal_resp.connect(self.slot_show_commanded_pos)
-        self.ui.readConstsButton.clicked.connect(self.rs_handler.slot_get_consts)
-        self.rs_handler.sig_send_consts.connect(self.slot_show_consts)
-        self.rs_handler.sig_progress_read_buffs.connect(self.slot_show_progress_read_buffs)
-
-        # Save button
-        self.ui.saveButton.clicked.connect(self.slot_save)
-
-        self.ui.lineEdit_delta.textEdited.connect(self.on_lineEdit_delta_textEdited)
-
-        # Faults Buffers
-        self.ui.readFBuffersButton.clicked.connect(self.rs_handler.read_fbuffs)
+        self.rs_handler.sig_progress_read_buffs.connect(self.slot_read_progress)
         self.rs_handler.sig_show_fbuffs.connect(self.show_fbuffs)
-        self.ui.tableWidget_FBuffers.cellDoubleClicked.connect(self.show_fault_buffer_info)
+        self.rs_handler.sig_error.connect(self.slot_handler_error)
+        self.rs_handler.handler.sig_normal_resp.connect(self.slot_ofv_reply)
+        self.rs_handler.handler.sig_response_received.connect(self.slot_rs_packet)
+        self.rs_handler.handler.sig_port_opened.connect(self.slot_rs_port_opened)
 
-        # UUT inputs and OFV control
-        self.sig_change_uut_in_words.connect(self.arinc_handler.slot_change_uut_word)
-        self.default_uut_in_params = uut_encode.default_uut_in_words()
-        self.ui.setDefaultButton.clicked.connect(self.slot_set_default_button)
-        self.ui.pushButton_setCustom_ofv.clicked.connect(self.slot_change_ofv)
-        self.sig_change_ofv.connect(self.rs_handler.slot_bite_change)
-        self.default_ofv_pos = 50
+        self.ui.bite_refresh.clicked.connect(self.sig_refresh_bite.emit)
+        self.ui.bite_search.textChanged.connect(self.filter_bite)
+        self.ui.bite_filter.currentIndexChanged.connect(self.filter_bite)
+        self.ui.bite_table.currentCellChanged.connect(self.show_bite_detail)
+        self.ui.read_buffers.clicked.connect(self.rs_handler.read_fbuffs)
+        self.ui.export_xlsx.clicked.connect(self.save_xlsx)
+        self.ui.buffer_search.textChanged.connect(self.filter_buffers)
+        self.ui.buffer_table.currentCellChanged.connect(self.show_buffer_detail)
+        self.ui.buffer_table.cellDoubleClicked.connect(self.open_buffer_record)
+        self.ui.buffer_fields.cellDoubleClicked.connect(self.open_buffer_field)
+        self.ui.open_record.clicked.connect(self.open_selected_record)
+        self.ui.read_button.clicked.connect(self.read_manual)
+        self.ui.write_button.clicked.connect(self.write_manual)
+        self.ui.reset_defaults.clicked.connect(self.restore_defaults)
+        self.ui.send_ofv.clicked.connect(self.send_ofv)
 
-        #labels
-        self.arinc_handler.sig_bus_activity.connect(self.slot_bus_activity)
-        self.ui.tableWidget.cellDoubleClicked.connect(self.show_row_info)
-        self.ui.tableWidget.setColumnCount(4)
-        self.ui.tableWidget.setHorizontalHeaderLabels(
-            ['Fault Code', 'Name', 'Auto Fail', 'Fault Indication']
-        )
-        self.ui.tableWidget.setRowCount(len(BITE.Faults))
-        self.ui.tableWidget.setWordWrap(True)
-        self.ui.tableWidget.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
-
-        current_font = self.ui.tableWidget.font()
-        current_font.setPointSize(13)
-        current_font.setBold(True)
-        self.ui.tableWidget.setFont(current_font)
-
-        for row, fault in enumerate(BITE.Faults):
-            for col, value in enumerate(
-                [
-                    fault.code,
-                    fault.name,
-                    fault.auto_fail if fault.name != 'NOT USED' else '',
-                    fault.fault_indication if fault.name != 'NOT USED' else '',
-                ]
-            ):
-                item = QTableWidgetItem(str(value))
-                item.setBackground(QColor(255, 255, 255))
-                self.ui.tableWidget.setItem(row, col, item)
-
-        self.ui.tableWidget.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.Stretch)
-        self.ui.tableWidget.resizeRowsToContents()
-        QTimer.singleShot(0, self.ui.tableWidget.resizeRowsToContents)
-        self.ui.tableWidget.verticalHeader().setVisible(False)
-        self.ui.tableWidget.setToolTip('Текущее состояние BITE по RS-422')
-        self.ui.tabWidget.setTabText(self.ui.tabWidget.indexOf(self.ui.tab), 'UUT BITE')
-
-        ### Настройка таблицы констант
-        self.ui.tableWidget_consts.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.Stretch)
-        self.ui.tableWidget_consts.resizeRowsToContents()
-        self.ui.tableWidget_consts.verticalHeader().setVisible(False)
-
-        ### Настройка fbuffs
-        self.ui.tableWidget_FBuffers.setColumnCount(len(FAULT_BUFFER_HEADERS))
-        self.ui.tableWidget_FBuffers.setHorizontalHeaderLabels(FAULT_BUFFER_HEADERS)
-        self.ui.tableWidget_FBuffers.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
-        self.ui.tableWidget_FBuffers.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeToContents)
-        self.ui.tableWidget_FBuffers.resizeRowsToContents()
-        self.ui.tableWidget_FBuffers.verticalHeader().setVisible(False)
-
-        # Выставляем значения uut in по умолчанию и отправляем arinc_handler чтобы тоже выставил
-        self.slot_set_default_button()
-
-
-        self.ui.lcdNumber_pc.setDigitCount(8)
-        self.ui.lcdNumber_alt.setDigitCount(8)
-        self.ui.lcdNumber_pc.display('----')
-        self.ui.lcdNumber_alt.display('----')
-        self.ui.readConstsButton.setEnabled(False)
-        self.ui.button_write_delta.setEnabled(False)
-        self.ui.lineEdit_delta.setEnabled(False)
-        self.ui.readConstsButton.setToolTip('Адреса констант не подтверждены в СММ')
-        self.ui.button_write_delta.setToolTip('Адреса калибровки не подтверждены в СММ')
-
+        self._build_bite_rows()
+        self.restore_defaults()
+        self.activity_timer = QTimer(self)
+        self.activity_timer.setInterval(500)
+        self.activity_timer.timeout.connect(self.refresh_activity)
+        self.activity_timer.start()
         self.arinc_thread.start()
-        self.sig_run_arinc_handler.emit()
         self.rs_thread.start()
 
-    @pyqtSlot()
-    def slot_save(self):
-        expected = RsWorker.FAULT_BUFFER_COUNT * RsWorker.FAULT_BUFFER_SIZE
-        if self.ui.progressBar.value() != 100 or len(self.rs_handler.raw_buffs) != expected:
-            self.slot_handler_error('Сначала прочитайте все буферы ошибок')
-            return
+    def _build_bite_rows(self):
+        table = self.ui.bite_table
+        for code, name in enumerate(FAULT_WORDS.FAULT_NAMES):
+            table.setItem(code, 0, QTableWidgetItem(f'{code:03d}'))
+            table.setItem(code, 1, QTableWidgetItem(name))
+            table.setItem(code, 2, QTableWidgetItem('—'))
+        table.selectRow(0)
 
-        home = os.path.expanduser('~')
-        path, _ = QFileDialog.getSaveFileName(
-            self,
-            caption='Сохранение данных NVM',
-            directory=f'{home}/moduleCPC_NVM.xlsx',
-            filter='Excel Files (*.xlsx)',
-            options=QFileDialog.Option.DontUseNativeDialog
-        )
+    def filter_bite(self, *_):
+        term = self.ui.bite_search.text().strip().lower()
+        mode = self.ui.bite_filter.currentText()
+        for code, name in enumerate(FAULT_WORDS.FAULT_NAMES):
+            active = bool(self.bite_matrix is not None and self.bite_matrix & (1 << code))
+            matches = not term or term in f'{code:03d} {name}'.lower()
+            if mode == 'Active':
+                matches &= active
+            elif mode == 'Clear':
+                matches &= self.bite_matrix is not None and not active
+            self.ui.bite_table.setRowHidden(code, not matches)
+
+    @pyqtSlot(object)
+    def show_bite_matrix(self, matrix):
+        self.bite_matrix = matrix
+        self.rs_last_rx_ms = self.clock.elapsed()
+        self.refresh_activity()
+        self.ui.bite_status.setText(f'{matrix.bit_count()} active fault(s) · current 14-byte matrix')
+        for code in range(len(FAULT_WORDS.FAULT_NAMES)):
+            active = bool(matrix & (1 << code))
+            item = self.ui.bite_table.item(code, 2)
+            item.setText('ACTIVE' if active else 'Clear')
+            item.setForeground(QColor('#ad4b19' if active else '#27815a'))
+        self.filter_bite()
+        self.show_bite_detail(self.ui.bite_table.currentRow(), 0)
+
+    @pyqtSlot(str)
+    def show_bite_unavailable(self, reason):
+        self.bite_matrix = None
+        self.ui.bite_status.setText(f'Matrix unavailable: {reason}')
+        for code in range(len(FAULT_WORDS.FAULT_NAMES)):
+            self.ui.bite_table.item(code, 2).setText('—')
+        self.filter_bite()
+        self.show_bite_detail(self.ui.bite_table.currentRow(), 0)
+
+    def show_bite_detail(self, row, _column, *_):
+        if not 0 <= row < len(FAULT_WORDS.FAULT_NAMES):
+            return
+        self.ui.bite_detail_title.setText(f'{row:03d} · {fault_name(row)}')
+        state = 'Current state unavailable' if self.bite_matrix is None else (
+            'ACTIVE' if self.bite_matrix & (1 << row) else 'Clear')
+        self.ui.bite_detail_state.setText(f'Matrix bit {row:03d}: {state}')
+        word = next(name for name, first in FAULT_WORDS.WORD_START_CODES.items()
+                    if first <= row < first + 16)
+        self.ui.bite_detail_source.setText(
+            f'{word} · bit {row - FAULT_WORDS.WORD_START_CODES[word]}\n'
+            'CMM 21-33-21 · BIT Fault Matrix · 14 bytes')
+
+    @pyqtSlot(str, int)
+    def slot_output_word(self, label_octal, word):
+        self.arinc_last_rx_ms = self.clock.elapsed()
+        self.refresh_activity()
+        if label_octal in ('057', '060'):
+            number = 1 if label_octal == '057' else 2
+            # В выходном слове ARINC доступны только биты данных 11–29.
+            value = (word >> 10) & 0x7FFFF
+            self.ui.disc_hex[number].setText(f'ARINC word {word:08X}H · SSM {(word >> 29) & 3:02b}')
+            for row, (bits, name, setting) in enumerate(DISC_INFO.decode_disc_info(number, value)):
+                last_bit = int(bits.split('–')[-1])
+                values = (bits, name, setting if last_bit <= 19 else '—')
+                for col, text in enumerate(values):
+                    self.ui.disc_tables[number].setItem(row, col, QTableWidgetItem(text))
+        elif label_octal in ('107', '127'):
+            decoded = ArincWorker._decode_bnr(word, lsb_bit=13, resolution=1.0)
+            self.ui.output_labels[label_octal].setText(f'{decoded["value"]:,.0f} ft · SSM {decoded["ssm"]:02b}')
+        elif label_octal == '270':
+            self.ui.output_labels['270'].setText(f'{(word >> 10) & 0x7FFFF:05X}H · SSM {(word >> 29) & 3:02b}')
+
+    @pyqtSlot(dict)
+    def slot_bus_activity(self, active):
+        if any(active.values()):
+            self.arinc_last_rx_ms = self.clock.elapsed()
+        self.refresh_activity()
+
+    @pyqtSlot(tuple)
+    def slot_ofv_reply(self, positions):
+        self.rs_last_rx_ms = self.clock.elapsed()
+        self.ui.output_labels['ofv'].setText(f'{positions[0]}° commanded')
+        self.refresh_activity()
+
+    @pyqtSlot(bytes)
+    def slot_rs_packet(self, _packet):
+        self.rs_last_rx_ms = self.clock.elapsed()
+        self.refresh_activity()
+
+    @pyqtSlot(str)
+    def slot_rs_port_opened(self, name):
+        self.ui.rs_connection.setText(f'●  RS-422  ·  {name}')
+        self.ui.rs_connection.setStyleSheet('color: #8be0bb;')
+
+    def refresh_activity(self):
+        now = self.clock.elapsed()
+        arinc_on = self.arinc_last_rx_ms is not None and now - self.arinc_last_rx_ms < 2000
+        rs_on = self.rs_last_rx_ms is not None and now - self.rs_last_rx_ms < 3000
+        self.ui.arinc_activity.setText('●  ARINC 429  ·  RECEIVING' if arinc_on else '○  ARINC 429  ·  NO OUTPUT')
+        self.ui.rs_activity.setText('●  RS-422  ·  ACTIVE' if rs_on else '○  RS-422  ·  NO RESPONSE')
+        self.ui.arinc_activity.setStyleSheet(f'color: {"#16805d" if arinc_on else "#a45c25"};')
+        self.ui.rs_activity.setStyleSheet(f'color: {"#16805d" if rs_on else "#a45c25"};')
+
+    def restore_defaults(self):
+        words = uut_encode.default_uut_in_words()
+        self.ui.input_table.setRowCount(len(words))
+        for row, (label_octal, value) in enumerate(words.items()):
+            self.ui.input_table.setItem(row, 0, QTableWidgetItem(label_octal))
+            self.ui.input_table.setItem(row, 1, QTableWidgetItem(value))
+        self.sig_change_uut_in_words.emit(words)
+        self.ui.ofv_position.setText('50')
+        self.ui.ofv_state.setCurrentIndex(1)
+        self.ui.ofv_bite.setCurrentIndex(0)
+        self.send_ofv()
+
+    def send_ofv(self):
+        try:
+            position = int(self.ui.ofv_position.text())
+            if not -2 <= position <= 122:
+                raise ValueError
+        except ValueError:
+            self.slot_handler_error('OFV position must be an integer from -2 to 122 degrees.')
+            return
+        self.sig_change_ofv.emit(bool(self.ui.ofv_state.currentIndex()),
+                                 bool(self.ui.ofv_bite.currentIndex()), position)
+        self.statusBar().showMessage('OFV S-message configured')
+
+    def _hex_input(self, widget, maximum, name):
+        try:
+            value = int(widget.text().strip(), 16)
+            if not 0 <= value <= maximum:
+                raise ValueError
+            return value
+        except ValueError:
+            self.slot_handler_error(f'{name} must be hexadecimal in range 0000–{maximum:04X}.')
+            return None
+
+    def read_manual(self):
+        address = self._hex_input(self.ui.read_address, 0xFFFF, 'Address')
+        if address is not None:
+            self.ui.read_reply.clear()
+            self.sig_r_nvram.emit(self.ui.read_mode.currentIndex() == 0, address)
+
+    def write_manual(self):
+        address = self._hex_input(self.ui.write_address, 0xFFFF, 'Address')
+        byte = self.ui.write_mode.currentIndex() == 0
+        data = self._hex_input(self.ui.write_data, 0xFF if byte else 0xFFFF, 'Data')
+        if address is not None and data is not None:
+            self.ui.write_reply.clear()
+            self.sig_w_nvram.emit(byte, address, data)
+
+    @pyqtSlot(int, str)
+    def slot_rw_reply(self, write, reply):
+        self.rs_last_rx_ms = self.clock.elapsed()
+        (self.ui.write_reply if write else self.ui.read_reply).setText(reply)
+
+    @pyqtSlot(int)
+    def slot_read_progress(self, percent):
+        self.ui.progress_bar.setValue(percent)
+        count = min(RsWorker.FAULT_BUFFER_COUNT, round(percent * RsWorker.FAULT_BUFFER_COUNT / 100))
+        self.ui.progress_label.setText(f'{count} / {RsWorker.FAULT_BUFFER_COUNT} buffers')
+        self.ui.read_buffers.setEnabled(percent == 100 or percent == 0)
+
+    @pyqtSlot(list)
+    def show_fbuffs(self, buffers):
+        self.fault_buffers = buffers
+        table = self.ui.buffer_table
+        table.setRowCount(len(buffers))
+        for row, buffer in enumerate(buffers):
+            values = (row, f'{RsWorker.FAULT_MEMORY_START + row * FaultsBuffer.SIZE * 2:04X}H',
+                      f'{buffer.fault_code:03d}', fault_name(buffer.fault_code), buffer.flight_leg_counter)
+            for column, value in enumerate(values):
+                table.setItem(row, column, QTableWidgetItem(str(value)))
+        self.filter_buffers()
+        if buffers:
+            table.selectRow(0)
+
+    def filter_buffers(self, *_):
+        term = self.ui.buffer_search.text().strip().lower()
+        for row in range(self.ui.buffer_table.rowCount()):
+            values = ' '.join(self.ui.buffer_table.item(row, col).text() for col in range(5))
+            self.ui.buffer_table.setRowHidden(row, bool(term and term not in values.lower()))
+
+    def show_buffer_detail(self, row, _column, *_):
+        if not 0 <= row < len(self.fault_buffers):
+            return
+        buffer = self.fault_buffers[row]
+        self.ui.buffer_summary.setText(
+            f'Buffer {row} · {RsWorker.FAULT_MEMORY_START + row * FaultsBuffer.SIZE * 2:04X}H\n'
+            f'Fault {buffer.fault_code:03d} · {fault_name(buffer.fault_code)}')
+        values = fault_buffer_row(row, buffer)
+        table = self.ui.buffer_fields
+        table.setRowCount(len(values) - 2)
+        for i, (field, value) in enumerate(zip(FAULT_BUFFER_HEADERS[2:], values[2:])):
+            table.setItem(i, 0, QTableWidgetItem(field))
+            table.setItem(i, 1, QTableWidgetItem(str(value)))
+
+    def open_selected_record(self):
+        self.open_buffer_record(self.ui.buffer_table.currentRow(), 0)
+
+    def open_buffer_field(self, field_row, _column):
+        buffer_index = self.ui.buffer_table.currentRow()
+        if not 0 <= buffer_index < len(self.fault_buffers):
+            return
+        field = FAULT_BUFFER_HEADERS[field_row + 2]
+        buffer = self.fault_buffers[buffer_index]
+        if field in ('DISC_INFO1', 'DISC_INFO2'):
+            number = int(field[-1])
+            value = getattr(buffer, field.lower())
+            decoded = DISC_INFO.make_disc_info_table(number, value)
+        elif field in FAULT_WORDS.WORD_START_CODES:
+            value = getattr(buffer, field.lower())
+            decoded = FAULT_WORDS.make_fault_word_table(field, value)
+        else:
+            return
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f'Buffer {buffer_index} · {field}')
+        layout = QVBoxLayout(dialog)
+        decoded.setParent(dialog)
+        layout.addWidget(decoded)
+        dialog.adjustSize()
+        dialog.exec_()
+
+    def open_buffer_record(self, row, _column):
+        if not 0 <= row < len(self.fault_buffers):
+            return
+        buffer = self.fault_buffers[row]
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f'Buffer {row} · full record')
+        layout = QVBoxLayout(dialog)
+        details = QPlainTextEdit()
+        details.setReadOnly(True)
+        lines = [f'{field}: {value}' for field, value in zip(FAULT_BUFFER_HEADERS, fault_buffer_row(row, buffer))]
+        for number in (1, 2):
+            value = getattr(buffer, f'disc_info{number}')
+            lines += ['', f'DISC_INFO{number}: {value:06X}H']
+            lines += [f'  {bit:>5}  {name}: {setting}' for bit, name, setting in DISC_INFO.decode_disc_info(number, value)]
+        for name in FAULT_WORDS.WORD_START_CODES:
+            value = getattr(buffer, name.lower())
+            lines += ['', f'{name}: {value:04X}H']
+            lines += [f'  {bit:>5}  {fault}: {setting}' for bit, fault, setting in FAULT_WORDS.decode_fault_word(name, value)]
+        raw = self.rs_handler.raw_buffs[row * FaultsBuffer.SIZE:(row + 1) * FaultsBuffer.SIZE]
+        if len(raw) == FaultsBuffer.SIZE:
+            lines += ['', 'RAW: ' + ' '.join(raw)]
+        details.setPlainText('\n'.join(lines))
+        layout.addWidget(details)
+        dialog.resize(830, 650)
+        dialog.exec_()
+
+    def save_xlsx(self):
+        expected = RsWorker.FAULT_BUFFER_COUNT * RsWorker.FAULT_BUFFER_SIZE
+        if self.ui.progress_bar.value() != 100 or len(self.rs_handler.raw_buffs) != expected:
+            self.slot_handler_error('Read all fault buffers before exporting.')
+            return
+        path, _ = QFileDialog.getSaveFileName(self, 'Export NVM',
+                                              os.path.expanduser('~/moduleCPC_NVM.xlsx'),
+                                              'Excel Files (*.xlsx)')
         if not path:
             return
         if not path.lower().endswith('.xlsx'):
             path += '.xlsx'
-
         try:
             build_nvm_workbook(self.rs_handler.raw_buffs).save(path)
-        except Exception as e:
-            self.slot_handler_error(f'Не удалось сохранить NVM: {e}')
-
-
-    @pyqtSlot()
-    def slot_change_ofv(self):
-        state = bool(self.ui.comboBox_ofv_state.currentIndex())
-        bite_fault_flag = bool(self.ui.comboBox_ofv_bite.currentIndex())
-        position = int(self.ui.lineEdit_ofv_input.text())
-        if position < -2:
-            position = -2
-            self.ui.lineEdit_ofv_input.setText(f'{position}')
-        if position > 122:
-            position = 122
-            self.ui.lineEdit_ofv_input.setText(f'{position}')
-        self.sig_change_ofv.emit(state, bite_fault_flag, position)
-
-    @pyqtSlot()
-    def on_rButton_clicked(self):
-        try:
-            addr = int(self.ui.lineEdit_r_addr.text(), 16)
-            if not 0 <= addr <= 0xFFFF:
-                print('Invalid address')
-                self.ui.lineEdit_r_addr.setText("")
-                return
-        except ValueError:
-            print('Invalid address')
-            self.ui.lineEdit_r_addr.setText("")
-            return
-        state = self.ui.radioButton_r_0.isChecked()
-        self.sig_r_nvram.emit(state, addr)
-
-
-    @pyqtSlot()
-    def on_wButton_clicked(self):
-        try:
-            addr = int(self.ui.lineEdit_w_addr.text(), 16)
-            data = int(self.ui.lineEdit_w_data.text(), 16)
-            if not 0 <= addr <= 0xFFFF:
-                print('Invalid address')
-                return
-            state = self.ui.radioButton_w_0.isChecked()
-            max_data = 0xFF if state else 0xFFFF
-            if not 0 <= data <= max_data:
-                print('Invalid data')
-                return
-        except ValueError:
-            print('Invalid address')
-            return
-        self.sig_w_nvram.emit(state, addr, data)
-
-    @pyqtSlot(int, str)
-    def slot_rw_reply(self, r0_w1, reply):
-        if r0_w1 == 0:
-            self.ui.lineEdit_r_reply.setText(reply)
-        else:
-            self.ui.lineEdit_w_reply.setText(reply)
-
-    @pyqtSlot(int)
-    def slot_show_progress_read_buffs(self, progr: int):
-        self.ui.progressBar.setValue(progr)
-
-    @pyqtSlot(list)
-    def show_fbuffs(self, buffs: list):
-        self.fault_buffers = buffs
-        table = self.ui.tableWidget_FBuffers
-        table.setRowCount(len(buffs))
-        for i, buffer in enumerate(buffs):
-            for j, value in enumerate(fault_buffer_row(i, buffer)):
-                table.setItem(i, j, QTableWidgetItem(str(value)))
-        table.resizeRowsToContents()
-
-    @pyqtSlot(int, int)
-    def show_fault_buffer_info(self, row, column):
-        if not 0 <= row < len(self.fault_buffers):
-            return
-        if not 0 <= column < len(FAULT_BUFFER_HEADERS):
-            return
-        header = FAULT_BUFFER_HEADERS[column]
-        if column in (FAULT_BUFFER_HEADERS.index('DISC_INFO1'),
-                      FAULT_BUFFER_HEADERS.index('DISC_INFO2')):
-            number = 1 if header == 'DISC_INFO1' else 2
-            value = (self.fault_buffers[row].disc_info1 if number == 1
-                     else self.fault_buffers[row].disc_info2)
-            dialog = QDialog(self)
-            dialog.setWindowTitle(f'Буфер №{row}: DISC_INFO{number} ({value:06X}H)')
-            layout = QVBoxLayout(dialog)
-            disc_table = DISC_INFO.make_disc_info_table(number, value, dialog)
-            layout.addWidget(disc_table)
-            dialog.adjustSize()
-            dialog.exec_()
-            return
-        if header in FAULT_WORDS.WORD_START_CODES:
-            value = getattr(self.fault_buffers[row], header.lower())
-            dialog = QDialog(self)
-            dialog.setWindowTitle(f'Буфер №{row}: {header} ({value:04X}H)')
-            layout = QVBoxLayout(dialog)
-            layout.addWidget(FAULT_WORDS.make_fault_word_table(header, value, dialog))
-            dialog.adjustSize()
-            dialog.exec_()
-            return
-        values = fault_buffer_row(row, self.fault_buffers[row])
-        details = '\n'.join(f'{name}: {value}' for name, value in zip(FAULT_BUFFER_HEADERS, values))
-        raw = self.rs_handler.raw_buffs[row * FaultsBuffer.SIZE:(row + 1) * FaultsBuffer.SIZE]
-        if len(raw) == FaultsBuffer.SIZE:
-            details += '\n\nRAW: ' + ' '.join(raw)
-        dialog = QDialog(self)
-        dialog.setWindowTitle(f'Буфер №{row}')
-        layout = QVBoxLayout(dialog)
-        text = QPlainTextEdit(dialog)
-        text.setReadOnly(True)
-        text.setPlainText(details)
-        layout.addWidget(text)
-        dialog.resize(700, 550)
-        dialog.exec_()
-
-    @pyqtSlot(object)
-    def show_bite_matrix(self, matrix):
-        self.ui.tableWidget.setToolTip('Текущее состояние BITE по RS-422')
-        for row in range(len(BITE.Faults)):
-            active = bool(matrix & (1 << row))
-            color = QColor(255, 165, 0) if active else QColor(255, 255, 255)
-            for column in range(self.ui.tableWidget.columnCount()):
-                self.ui.tableWidget.item(row, column).setBackground(QBrush(color))
-        self.ui.tableWidget.viewport().update()
-
-    @pyqtSlot(str)
-    def show_bite_unavailable(self, reason):
-        for row in range(len(BITE.Faults)):
-            for column in range(self.ui.tableWidget.columnCount()):
-                self.ui.tableWidget.item(row, column).setBackground(QBrush(QColor(240, 240, 240)))
-        self.ui.tableWidget.setToolTip(reason)
-
-    @pyqtSlot(int, int)
-    def show_row_info(self, row, column):
-        if not 0 <= row < len(BITE.Faults):
-            return
-        fault = BITE.Faults[row]
-        details = [
-            f'Fault Code: {fault.code:03d}',
-            f'Name: {fault.name}',
-            f'Auto Fail: {fault.auto_fail or "not specified"}',
-            f'NVM: {fault.nvm or "not specified"}',
-            f'Recoverable: {fault.recoverable or "not specified"}',
-        ]
-        if fault.reference_name and fault.reference_name != fault.name:
-            details.append(f'Table 5 Name: {fault.reference_name}')
-        if fault.fault_indication:
-            details.append(f'Fault Indication: {fault.fault_indication}')
-        if fault.descriptor:
-            details.extend(['', fault.descriptor])
-        if fault.cmm_page is not None:
-            details.extend(['', f'CMM 21-33-20, Table 5, page {fault.cmm_page}'])
-        dialog = QDialog(self)
-        dialog.setWindowTitle(f'Info {fault.name}')
-        layout = QVBoxLayout(dialog)
-        text = QPlainTextEdit(dialog)
-        text.setReadOnly(True)
-        text.setPlainText('\n'.join(details))
-        layout.addWidget(text)
-        dialog.resize(700, 400)
-        dialog.exec_()
-
-    @pyqtSlot(int, int)
-    def number_sys_changed(self, row, index):
-        current_text = self.ui.tableWidget_consts.item(row,1).text()
-        if index:
-            new_text = f'{int(current_text):X}'
-        else:
-            new_text = f'{int(current_text, 16)}'
-        self.ui.tableWidget_consts.item(row,1).setText(new_text)
-
-    @pyqtSlot(dict)
-    def slot_bus_activity(self, active):
-        sdac_1, sdac_2 = active.get('sdac_0'), active.get('sdac_1')
-
-        if sdac_1:
-            self.ui.sdac_1.setChecked(True)
-        else:
-            self.ui.sdac_1.setChecked(False)
-
-        if sdac_2:
-            self.ui.sdac_2.setChecked(True)
-        else:
-            self.ui.sdac_2.setChecked(False)
-
-    @pyqtSlot()
-    def slot_set_default_button(self):
-        self.sig_change_uut_in_words.emit(self.default_uut_in_params)
-
-        self.ui.lineEdit_ofv_input.setText(f'{self.default_ofv_pos}')
-        self.ui.comboBox_ofv_state.setCurrentIndex(1) #Operational
-        self.ui.comboBox_ofv_bite.setCurrentIndex(0)
-
-        self.slot_change_ofv()
-
-
-    @pyqtSlot(dict)
-    def slot_show_consts(self, consts: dict):
-        drift_comp_cnt_part_1 = ''
-        self.ui.tableWidget_consts.setRowCount(len(consts)-1) # -1 because drift_comp_cnt in two parts
-        for i, (key, value) in enumerate(consts.items()):
-            # 'pc_offset_nvm': int(self.handler.read_word(0xA100) / 2048) * PSI_HPA,
-            # 'pc_offset_nvm_checksum': (int(self.handler.read_word(0xA102), 16) / 2048) * PSI_HPA,
-            # 'pc_check_offst': (int(self.handler.read_word(0xA104), 16) / 2048) * PSI_HPA,
-            # 'drift_comp_cnt': int((self.handler.read_word(0xA106) + self.handler.read_word(0xA108)), 16),
-            # 'pc_offset_fail_cnt': int(self.handler.read_byte(0xA10A), 16),
-            match key:
-                case 'pc_offset_nvm':   value = round((int16_from_hex(value) / 2048) * PSI_HPA, 2)
-                case 'pc_offset_nvm_checksum' :  value = round((int16_from_hex(value) / 2048) * PSI_HPA, 2)
-                case 'pc_check_offst': value = round((int16_from_hex(value) / 2048) * PSI_HPA, 2)
-                case 'pc_offset_fail_cnt': value = int(value, 16)
-                case 'pc': value = round((int(value, 16) / 1024) * PSI_HPA, 2)
-                case 'alt_cab_rato':
-                    value = int(value, 16)
-                    if value < 32768:
-                        value = value / 4
-                    else:
-                        value = round(((65535 - value) / -4), 2)
-                case 'drift_comp_cnt_0':
-                    drift_comp_cnt_part_1 = value
-                    continue
-                case 'drift_comp_cnt_1':
-                    key = 'drift_comp_cnt'
-                    value = int(f'{drift_comp_cnt_part_1}{value}', 16)
-
-            if i > 3: i -= 1
-
-            self.ui.tableWidget_consts.setItem(i, 0, QTableWidgetItem(key))
-            self.ui.tableWidget_consts.setItem(i, 1, QTableWidgetItem(str(value)))
-
-        self.ui.tableWidget_consts.resizeRowsToContents()
-
-        # Считаем дельту, записываем константы в глабальные переменные класса
-        pc = float(self.ui.tableWidget_consts.item(9, 1).text())
-        self.pc_offset_nvm = float(self.ui.tableWidget_consts.item(0, 1).text())
-        self.pc_offset_nvm_checksum = float(self.ui.tableWidget_consts.item(1, 1).text())
-        self.pc_check_offset = float(self.ui.tableWidget_consts.item(2, 1).text())
-        self.delta = 1020 - pc + self.pc_offset_nvm
-        self.ui.lineEdit_delta.setText(f'{self.delta}') 
-
-    def try_write_consts(self):
-        pc_offset_nvm = int((self.delta / PSI_HPA) * 2048)
-        self.sig_w_nvram.emit(False, 0xA100, pc_offset_nvm)
-
-        pc_offset_nvm_checksum = -pc_offset_nvm
-        self.sig_w_nvram.emit(False, 0xA102, pc_offset_nvm_checksum)
-
-        pc_check_offset = pc_offset_nvm
-        self.sig_w_nvram.emit(False, 0xA104, pc_check_offset)
-
-    def write_consts(self):
-        self.ui.tableWidget_consts.setItem(0, 1, QTableWidgetItem(str(0.0)))
-        timeout_cnt = 0
-        while timeout_cnt != 10:
-            self.try_write_consts()
-            sleep(0.05)
-            pc = float(self.ui.tableWidget_consts.item(0, 1).text())
-            if not pc > 0:
-                timeout_cnt += 1
-            else:
-                break
-
-    @pyqtSlot()
-    def on_lineEdit_delta_textEdited(self):
-        self.is_delta_edited = True
-
-    @pyqtSlot()
-    def on_button_write_delta_clicked(self):
-        if abs(self.delta) > 12 or abs(self.pc_check_offset) > 12:
-            self.ui.lineEdit_control.setText(f'Необходима замена датчика давления')
-        else:
-            self.write_consts()
-            self.ui.lineEdit_control.setText(f'Delta записана')
-            self.ui.readConstsButton.clicked.emit()
-
-    @pyqtSlot(tuple)
-    def slot_show_commanded_pos(self, br_zc):
-        br, zc = br_zc
-        self.ui.lcdNumber_comPos.display(br)
-
-    @pyqtSlot(tuple)
-    def slot_show_uut_to_operator(self, pc_alt):
-        pc, alt = pc_alt
-        self.ui.lcdNumber_pc.display(pc)
-        self.ui.lcdNumber_alt.display(alt)
-
-    @pyqtSlot()
-    def slot_arinc_handler_connected(self):
-        print('arinc handler connected')
+        except Exception as exc:
+            self.slot_handler_error(f'Could not export NVM: {exc}')
 
     def refresh_arinc_port_menu(self):
         self.arinc_port_menu.clear()
         ports = sorted(QSerialPortInfo.availablePorts(), key=lambda info: info.portName())
         if not ports:
-            action = self.arinc_port_menu.addAction('Доступных портов нет')
-            action.setEnabled(False)
-            return
+            self.arinc_port_menu.addAction('No available ports').setEnabled(False)
         for info in ports:
-            port_name = info.portName()
-            label = port_name
-            if info.description():
-                label += f' — {info.description()}'
-            action = self.arinc_port_menu.addAction(label)
+            name = info.portName()
+            title = f'{name} — {info.description()}' if info.description() else name
+            action = self.arinc_port_menu.addAction(title)
             action.setCheckable(True)
-            action.setChecked(port_name == self.arinc_port_name)
-            action.triggered.connect(
-                lambda _checked=False, name=port_name: self.select_arinc_port(name)
-            )
+            action.setChecked(name == self.arinc_port_name)
+            action.triggered.connect(lambda _checked=False, port=name: self.select_arinc_port(port))
 
-    def select_arinc_port(self, port_name: str):
-        self._requested_arinc_port = port_name
-        self.statusBar().showMessage(f'Проверка адаптера ARINC на {port_name}...')
-        self.sig_connect_arinc_port.emit(port_name)
+    def select_arinc_port(self, name):
+        self._requested_arinc_port = name
+        self.statusBar().showMessage(f'Checking ARINC adapter on {name}...')
+        self.sig_connect_arinc_port.emit(name)
 
     @pyqtSlot(str)
-    def slot_arinc_port_verified(self, port_name: str):
-        if port_name != self._requested_arinc_port:
+    def slot_arinc_port_verified(self, name):
+        if name != self._requested_arinc_port:
             return
         try:
-            with open(self.ports_path, 'r', encoding='utf-8') as f:
-                ports = json.load(f)
-            ports['arinc-com'] = port_name
-            with open(self.ports_path, 'w', encoding='utf-8') as f:
-                json.dump(ports, f, ensure_ascii=False, indent=2)
-                f.write('\n')
+            with open(self.ports_path, encoding='utf-8') as file:
+                ports = json.load(file)
+            ports['arinc-com'] = name
+            with open(self.ports_path, 'w', encoding='utf-8') as file:
+                json.dump(ports, file, ensure_ascii=False, indent=2)
+                file.write('\n')
         except (OSError, ValueError) as exc:
-            self.slot_handler_error(f'Адаптер подключён, но порт не сохранён: {exc}')
+            self.slot_handler_error(f'ARINC adapter connected, but port not saved: {exc}')
             return
-        self.arinc_port_name = port_name
-        self.statusBar().showMessage(f'ARINC подключён: {port_name}')
+        self.arinc_port_name = name
+        self.ui.arinc_connection.setText(f'●  ARINC  ·  {name}')
+        self.ui.arinc_connection.setStyleSheet('color: #8be0bb;')
+        self.statusBar().showMessage(f'ARINC connected: {name}')
+
+    @pyqtSlot()
+    def slot_arinc_connected(self):
+        self.statusBar().showMessage('ARINC adapter connected')
 
     @pyqtSlot(str)
-    def slot_handler_error(self, error:str):
-        QMessageBox.critical(self, "Error", error)
+    def slot_handler_error(self, error):
+        QMessageBox.critical(self, 'Error', error)
 
+    def closeEvent(self, event):
+        self.arinc_thread.quit()
+        self.rs_thread.quit()
+        self.arinc_thread.wait(2000)
+        self.rs_thread.wait(2000)
+        super().closeEvent(event)

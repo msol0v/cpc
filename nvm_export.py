@@ -50,7 +50,7 @@ def _link_to_detail(cell, sheet_name, row):
     cell.hyperlink = Hyperlink(
         ref=cell.coordinate,
         location=f"'{sheet_name}'!A{row}",
-        tooltip='Открыть расшифровку',
+        tooltip='Open decoded table',
     )
 
 

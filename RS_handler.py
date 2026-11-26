@@ -162,6 +162,7 @@ class RWTask():
 
 class RWHandler(QObject):
     sig_timers_start = pyqtSignal()
+    sig_port_opened = pyqtSignal(str)
     sig_response_received = pyqtSignal(bytes)
     sig_request = pyqtSignal(object)
     sig_timeout = pyqtSignal()
@@ -253,6 +254,7 @@ class RWHandler(QObject):
 
     def message_route(self, packets):
         for packet in packets:
+            self.sig_response_received.emit(bytes(packet))
             packet_str = packet.decode('ascii')
             match (packet_str[0:1]):
                 case 'P':
@@ -316,6 +318,7 @@ class RWHandler(QObject):
             return False
 
         print(f"RS port {self.port.portName()} opened successfully")
+        self.sig_port_opened.emit(self.port.portName())
         return True
 
     def set_normal_task(self, task: RWTask):

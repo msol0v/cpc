@@ -73,7 +73,7 @@ def decode_disc_info(number: int, value: int):
         bits = str(first) if first == last else f'{first}–{last}'
         field_value = (value >> (first - 1)) & ((1 << (last - first + 1)) - 1)
         if meanings:
-            setting = f'{field_value} = {meanings.get(field_value, "не определено")}'
+            setting = f'{field_value} = {meanings.get(field_value, "undefined")}'
         else:
             setting = 'TRUE' if field_value else 'FALSE'
         result.append((bits, name, setting))

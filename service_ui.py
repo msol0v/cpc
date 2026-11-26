@@ -137,7 +137,7 @@ def table(headers, stretch_column=1):
 
 class ServiceUi:
     def setup(self, window):
-        window.setWindowTitle("CPC Service Bench · CMM 21-33-21")
+        window.setWindowTitle("TEST PANEL SOFTWARE CMM 21-33-21")
         window.resize(1500, 900)
         window.setMinimumSize(1100, 700)
         window.setStyleSheet(STYLE)
@@ -153,9 +153,6 @@ class ServiceUi:
         sl = QVBoxLayout(side)
         sl.setContentsMargins(15, 24, 15, 20)
         sl.setSpacing(8)
-        sl.addWidget(label("CPC / SERVICE", 15, True, "#ffffff"))
-        sl.addWidget(label("CMM 21-33-21  ·  service bench", 9, color="#92a4bf"))
-        sl.addSpacing(28)
         self.nav = []
         self.stack = QStackedWidget()
         for index, name in enumerate(("UUT Output", "BITE", "NVM", "UUT Input")):

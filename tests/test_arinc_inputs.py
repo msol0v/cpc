@@ -103,6 +103,16 @@ class ArincInputTests(unittest.TestCase):
                       worker.timer_100ms, worker.timer_200ms):
             timer.stop()
 
+    def test_received_output_word_reaches_ui_signal(self):
+        worker = ArincWorker('unused')
+        received = []
+        worker.sig_output_word.connect(lambda label, word: received.append((label, word)))
+        word = int(uut_encode.encode_107(35000), 16)
+
+        worker.call_word_handler(base8_to_int('107'), word)
+
+        self.assertEqual(received, [('107', word)])
+
 
 if __name__ == '__main__':
     unittest.main()

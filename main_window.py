@@ -181,7 +181,7 @@ class MainWindow(QtWidgets.QMainWindow):
             f'{word} · bit {row - FAULT_WORDS.WORD_START_CODES[word]}\n'
             'CMM 21-33-21 · BIT Fault Matrix · 14 bytes')
 
-    @pyqtSlot(str, int)
+    @pyqtSlot(str, object)
     def slot_output_word(self, label_octal, word):
         self.arinc_last_rx_ms = self.clock.elapsed()
         self.refresh_activity()
